@@ -6,6 +6,7 @@
 
 import easyocr
 import numpy as np
+import os
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
 import cv2
@@ -261,16 +262,10 @@ class ChatOCR(Analyzer):
             image = Image.new('RGB', (width, height), color='white')
             draw = ImageDraw.Draw(image)
             
-            # 尝试使用系统字体
-            try:
-                font_large = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 36)
-                font_medium = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 24)
-                font_small = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 18)
-            except:
-                # 如果没有找到字体，使用默认字体
-                font_large = ImageFont.load_default()
-                font_medium = ImageFont.load_default()
-                font_small = ImageFont.load_default()
+            # 尝试加载支持中文的字体
+            font_large = self._get_font(36)
+            font_medium = self._get_font(24)
+            font_small = self._get_font(18)
             
             # 添加各种测试文本
             texts = [
@@ -303,6 +298,42 @@ class ChatOCR(Analyzer):
             buffer = BytesIO()
             image.save(buffer, format='PNG')
             return buffer.getvalue()
+    
+    def _get_font(self, size: int):
+        """
+        获取支持中文的字体
+        
+        Args:
+            size: 字体大小
+            
+        Returns:
+            字体对象
+        """
+        # macOS 中文字体路径列表
+        chinese_fonts = [
+            "/System/Library/Fonts/PingFang.ttc",  # 苹方字体
+            "/System/Library/Fonts/STHeiti Light.ttc",  # 华文黑体
+            "/System/Library/Fonts/Hiragino Sans GB.ttc",  # 冬青黑体
+            "/System/Library/Fonts/Arial Unicode MS.ttf",  # Arial Unicode
+            "/System/Library/Fonts/Helvetica.ttc",  # Helvetica
+            "/Library/Fonts/Arial.ttf",  # 系统Arial
+            "/System/Library/Fonts/Menlo.ttc",  # Menlo字体
+        ]
+        
+        # 尝试加载支持中文的字体
+        for font_path in chinese_fonts:
+            try:
+                if os.path.exists(font_path):
+                    return ImageFont.truetype(font_path, size)
+            except Exception:
+                continue
+        
+        # 如果都失败了，使用默认字体
+        try:
+            return ImageFont.load_default()
+        except:
+            # 最后的备用方案
+            return ImageFont.load_default()
     
     def extract_text_only(self, image_bytes: bytes) -> str:
         """
