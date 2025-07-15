@@ -25,12 +25,12 @@ class Analyzer(ABC):
 
     
     @abstractmethod
-    def analyze(self, content: str, **kwargs) -> Dict[str, Any]:
+    def analyze(self, bytes) -> str:
 
         pass
     
     @abstractmethod
-    def validate_input(self, content: str) -> bool:
+    def validate_input(self, bytes) -> bool:
         
         pass
 
@@ -41,3 +41,4 @@ class Analyzer(ABC):
         :param content: 输入内容
         :return: 图片
         """
+        pass
