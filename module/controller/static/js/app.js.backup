@@ -1,0 +1,2747 @@
+/**
+ * Soul Chat Robot - Web界面前端脚本
+ */
+
+// 初始化全局变量
+let currentScreenshot = null;  // 当前截图数据
+let currentScreenSize = null;  // 当前屏幕尺寸
+let tasks = [];  // 所有任务
+let editingTask = null;  // 当前编辑的任务
+let editingCondition = null;  // 当前编辑的条件
+let editingAction = null;  // 当前编辑的动作
+let pickingForField = null;  // 当前用于选择坐标的字段
+let pickedCoordinates = null;  // 选中的坐标
+let currentTemplateImage = null;  // 当前上传的模板图片
+let runningTasks = [];  // 正在运行的任务ID列表
+let taskExecutionLogs = {};  // 任务执行日志
+
+// DOM元素
+let elements = {}; // 先声明为空对象，稍后在 init() 函数中初始化
+
+// 初始化DOM元素引用
+function initElements() {
+    elements = {
+        // 设备控制
+        deviceSelect: document.getElementById('device-select'),
+        refreshDevices: document.getElementById('refresh-devices'),
+        connectDevice: document.getElementById('connect-device'),
+        connectionStatus: document.getElementById('connection-status'),
+        deviceInfo: document.getElementById('device-info'),
+        // 截图
+        takeScreenshot: document.getElementById('take-screenshot'),
+        screenshotImg: document.getElementById('screenshot-img'),
+        noScreenshot: document.getElementById('no-screenshot'),
+        screenResolution: document.getElementById('screen-resolution'),
+        screenshotTime: document.getElementById('screenshot-time'),
+        screenOverlay: document.getElementById('screen-overlay'),
+        tapIndicator: document.getElementById('tap-indicator'),
+        tapCoordinates: document.getElementById('tap-coordinates'),
+        enableTap: document.getElementById('enable-tap'),
+        // 按键
+        btnBack: document.getElementById('btn-back'),
+        btnHome: document.getElementById('btn-home'),
+    // 任务管理
+    taskList: document.getElementById('task-list'),
+    btnNewTask: document.getElementById('btn-new-task'),
+    btnCreateFirstTask: document.getElementById('btn-create-first-task'),
+    btnSaveTasks: document.getElementById('btn-save-tasks'),
+    btnLoadTasks: document.getElementById('btn-load-tasks'),
+    // 模态框
+    taskModal: new bootstrap.Modal(document.getElementById('task-modal')),
+    taskForm: document.getElementById('task-form'),
+    taskId: document.getElementById('task-id'),
+    taskName: document.getElementById('task-name'),
+    taskDescription: document.getElementById('task-description'),
+    taskType: document.getElementById('task-type'),
+    loopCountGroup: document.getElementById('loop-count-group'),
+    loopCount: document.getElementById('loop-count'),
+    conditionsGroup: document.getElementById('conditions-group'),
+    conditionsList: document.getElementById('conditions-list'),
+    noConditions: document.getElementById('no-conditions'),
+    addCondition: document.getElementById('add-condition'),
+    actionsList: document.getElementById('actions-list'),
+    noActions: document.getElementById('no-actions'),
+    childrenGroup: document.getElementById('children-group'),
+    childrenList: document.getElementById('children-list'),
+    noChildren: document.getElementById('no-children'),
+    addChildTask: document.getElementById('add-child-task'),
+    saveTask: document.getElementById('save-task'),
+    // 条件模态框
+    conditionModal: new bootstrap.Modal(document.getElementById('condition-modal')),
+    conditionForm: document.getElementById('condition-form'),
+    conditionId: document.getElementById('condition-id'),
+    conditionType: document.getElementById('condition-type'),
+    conditionContent: document.getElementById('condition-content'),
+    conditionAnalyzer: document.getElementById('condition-analyzer'),
+    conditionConfidence: document.getElementById('condition-confidence'),
+    confidenceValue: document.getElementById('confidence-value'),
+    saveCondition: document.getElementById('save-condition'),
+    // 模板图片相关
+    textConditionGroup: document.getElementById('text-condition-group'),
+    templateConditionGroup: document.getElementById('template-condition-group'),
+    templateImageFile: document.getElementById('template-image-file'),
+    uploadTemplateBtn: document.getElementById('upload-template-btn'),
+    templatePreviewContainer: document.getElementById('template-preview-container'),
+    templatePreview: document.getElementById('template-preview'),
+    templateName: document.getElementById('template-name'),
+    templateStatus: document.getElementById('template-status'),
+    templateRegionX: document.getElementById('template-region-x'),
+    templateRegionY: document.getElementById('template-region-y'),
+    templateRegionWidth: document.getElementById('template-region-width'),
+    templateRegionHeight: document.getElementById('template-region-height'),
+    templateAnalyzerOption: document.querySelector('.template-analyzer-option'),
+    // 动作模态框
+    actionModal: new bootstrap.Modal(document.getElementById('action-modal')),
+    actionForm: document.getElementById('action-form'),
+    actionId: document.getElementById('action-id'),
+    actionType: document.getElementById('action-type'),
+    actionName: document.getElementById('action-name'),
+    actionFields: document.querySelectorAll('.action-fields'),
+    tapX: document.getElementById('tap-x'),
+    tapY: document.getElementById('tap-y'),
+    pickCoordinates: document.getElementById('pick-coordinates'),
+    inputText: document.getElementById('input-text'),
+    waitSeconds: document.getElementById('wait-seconds'),
+    keyCode: document.getElementById('key-code'),
+    swipeX1: document.getElementById('swipe-x1'),
+    swipeY1: document.getElementById('swipe-y1'),
+    swipeX2: document.getElementById('swipe-x2'),
+    swipeY2: document.getElementById('swipe-y2'),
+    swipeDuration: document.getElementById('swipe-duration'),
+    saveAction: document.getElementById('save-action'),
+    // 子任务选择模态框
+    childTaskModal: new bootstrap.Modal(document.getElementById('child-task-modal')),
+    childTaskList: document.getElementById('child-task-list'),
+    noAvailableTasks: document.getElementById('no-available-tasks'),
+    // 坐标选择模态框
+    coordinatePickerModal: new bootstrap.Modal(document.getElementById('coordinate-picker-modal')),
+    pickerScreenshot: document.getElementById('picker-screenshot'),
+    pickerOverlay: document.getElementById('picker-overlay'),
+    pickerIndicator: document.getElementById('picker-indicator'),
+    pickerCoordinates: document.getElementById('picker-coordinates'),
+    confirmCoordinates: document.getElementById('confirm-coordinates')
+};
+
+// 初始化函数
+function init() {
+    console.log('开始初始化应用...');
+    
+    // 先初始化DOM元素引用
+    initElements();
+    
+    // 检查关键元素是否存在
+    if (!elements.refreshDevices || !elements.connectDevice) {
+        console.error('无法找到关键DOM元素，应用初始化失败');
+        return;
+    }
+    
+    // 绑定事件处理程序
+    bindEvents();
+    
+    // 加载设备列表
+    loadDevices();
+    
+    // 初始化任务列表
+    renderTaskList();
+    
+    console.log('Web应用初始化完成');
+}
+
+// 绑定事件处理程序
+function bindEvents() {
+    console.log('开始绑定事件处理程序...');
+    
+    // 绑定事件前检查元素是否存在
+    if (elements.refreshDevices) {
+        elements.refreshDevices.addEventListener('click', loadDevices);
+    } else {
+        console.error('找不到刷新设备按钮元素');
+    }
+    
+    if (elements.connectDevice) {
+        elements.connectDevice.addEventListener('click', connectDevice);
+    } else {
+        console.error('找不到连接设备按钮元素');
+    }
+    
+    if (elements.takeScreenshot) {
+        elements.takeScreenshot.addEventListener('click', takeScreenshot);
+    } else {
+        console.error('找不到截图按钮元素');
+    }
+    
+    if (elements.enableTap) {
+        elements.enableTap.addEventListener('change', toggleTapFeature);
+    } else {
+        console.error('找不到启用点击按钮元素');
+    }
+    
+    if (elements.btnBack) {
+        elements.btnBack.addEventListener('click', pressBackButton);
+    } else {
+        console.error('找不到返回按钮元素');
+    }
+    
+    if (elements.btnHome) {
+        elements.btnHome.addEventListener('click', pressHomeButton);
+    } else {
+        console.error('找不到Home按钮元素');
+    }
+    
+    // 屏幕点击
+    if (elements.screenOverlay) {
+        elements.screenOverlay.addEventListener('click', handleScreenTap);
+    } else {
+        console.error('找不到屏幕叠加层元素');
+    }
+    
+    // 任务管理
+    if (elements.btnNewTask) {
+        elements.btnNewTask.addEventListener('click', createNewTask);
+    } else {
+        console.error('找不到新建任务按钮元素');
+    }
+    
+    if (elements.btnCreateFirstTask) {
+        elements.btnCreateFirstTask.addEventListener('click', createNewTask);
+    } else {
+        console.error('找不到创建第一个任务按钮元素');
+    }
+    
+    if (elements.btnSaveTasks) {
+        elements.btnSaveTasks.addEventListener('click', saveTasks);
+    } else {
+        console.error('找不到保存任务按钮元素');
+    }
+    
+    if (elements.btnLoadTasks) {
+        elements.btnLoadTasks.addEventListener('click', loadTasks);
+    } else {
+        console.error('找不到加载任务按钮元素');
+    }
+    
+    // 任务表单
+    if (elements.taskType) {
+        elements.taskType.addEventListener('change', handleTaskTypeChange);
+    } else {
+        console.error('找不到任务类型选择元素');
+    }
+    
+    if (elements.addCondition) {
+        elements.addCondition.addEventListener('click', openConditionModal);
+    } else {
+        console.error('找不到添加条件按钮元素');
+    }
+    
+    if (elements.addChildTask) {
+        elements.addChildTask.addEventListener('click', openChildTaskModal);
+    } else {
+        console.error('找不到添加子任务按钮元素');
+    }
+    
+    if (elements.saveTask) {
+        elements.saveTask.addEventListener('click', saveTaskForm);
+    } else {
+        console.error('找不到保存任务按钮元素');
+    }
+    
+    // 动作相关
+    const actionButtons = document.querySelectorAll('.add-action');
+    if (actionButtons && actionButtons.length > 0) {
+        actionButtons.forEach(button => {
+            button.addEventListener('click', e => {
+                e.preventDefault();
+                const actionType = e.target.closest('.add-action').dataset.type;
+                openActionModal(actionType);
+            });
+        });
+    } else {
+        console.error('找不到添加动作按钮元素');
+    }
+    
+    // 条件模态框
+    if (elements.conditionType) {
+        elements.conditionType.addEventListener('change', handleConditionTypeChange);
+    } else {
+        console.error('找不到条件类型选择元素');
+    }
+    
+    if (elements.conditionConfidence) {
+        elements.conditionConfidence.addEventListener('input', e => {
+            if (elements.confidenceValue) {
+                elements.confidenceValue.textContent = e.target.value;
+            }
+        });
+    } else {
+        console.error('找不到条件置信度输入元素');
+    }
+    
+    if (elements.saveCondition) {
+        elements.saveCondition.addEventListener('click', saveConditionForm);
+    } else {
+        console.error('找不到保存条件按钮元素');
+    }
+    
+    // 模板图片上传
+    if (elements.uploadTemplateBtn) {
+        elements.uploadTemplateBtn.addEventListener('click', uploadTemplateImage);
+    } else {
+        console.error('找不到上传模板按钮元素');
+    }
+    
+    // 动作模态框
+    if (elements.pickCoordinates) {
+        elements.pickCoordinates.addEventListener('click', openCoordinatePicker);
+    } else {
+        console.error('找不到选择坐标按钮元素');
+    }
+    
+    if (elements.saveAction) {
+        elements.saveAction.addEventListener('click', saveActionForm);
+    } else {
+        console.error('找不到保存动作按钮元素');
+    }
+    
+    // 坐标选择器
+    if (elements.pickerOverlay) {
+        elements.pickerOverlay.addEventListener('mousemove', updatePickerPosition);
+        elements.pickerOverlay.addEventListener('click', lockPickerPosition);
+    } else {
+        console.error('找不到选择器叠加层元素');
+    }
+    
+    if (elements.confirmCoordinates) {
+        elements.confirmCoordinates.addEventListener('click', confirmCoordinates);
+    } else {
+        console.error('找不到确认坐标按钮元素');
+    }
+    
+    console.log('事件处理程序绑定完成');
+}
+
+// 加载设备列表
+function loadDevices() {
+    // 显示加载中状态
+    elements.deviceSelect.innerHTML = '<option value="">加载中...</option>';
+    
+    // 发送请求获取设备列表
+    fetch('/devices')
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                // 清空设备列表
+                elements.deviceSelect.innerHTML = '<option value="">-- 选择设备 --</option>';
+                
+                // 添加设备选项
+                data.devices.forEach(device => {
+                    const option = document.createElement('option');
+                    option.value = device.id;
+                    option.textContent = `${device.model} (${device.id})`;
+                    elements.deviceSelect.appendChild(option);
+                });
+                
+                // 如果有已连接的设备，选中它
+                if (data.connected_device) {
+                    elements.deviceSelect.value = data.connected_device;
+                    updateConnectionStatus(true, data.connected_device);
+                } else {
+                    updateConnectionStatus(false);
+                }
+                
+                // 更新状态信息
+                if (data.devices.length === 0) {
+                    elements.deviceSelect.innerHTML = '<option value="">未发现设备</option>';
+                }
+            } else {
+                // 显示错误信息
+                elements.deviceSelect.innerHTML = '<option value="">加载失败</option>';
+                showToast('错误', data.message || '加载设备列表失败');
+            }
+        })
+        .catch(error => {
+            console.error('获取设备列表时出错:', error);
+            elements.deviceSelect.innerHTML = '<option value="">加载失败</option>';
+            showToast('错误', '无法连接到服务器');
+        });
+}
+
+// 连接设备
+function connectDevice() {
+    const deviceId = elements.deviceSelect.value;
+    
+    if (!deviceId) {
+        showToast('提示', '请先选择一个设备');
+        return;
+    }
+    
+    // 发送连接请求
+    fetch('/connect', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            device_id: deviceId
+        })
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                // 更新连接状态
+                updateConnectionStatus(true, deviceId);
+                // 显示屏幕尺寸信息
+                if (data.screen_size) {
+                    currentScreenSize = data.screen_size;
+                    elements.screenResolution.textContent = `${data.screen_size[0]}x${data.screen_size[1]}`;
+                }
+                showToast('成功', data.message);
+            } else {
+                updateConnectionStatus(false);
+                showToast('错误', data.message);
+            }
+        })
+        .catch(error => {
+            console.error('连接设备时出错:', error);
+            updateConnectionStatus(false);
+            showToast('错误', '无法连接到服务器');
+        });
+}
+
+// 更新连接状态
+function updateConnectionStatus(connected, deviceId = null) {
+    if (connected) {
+        elements.connectionStatus.textContent = '已连接';
+        elements.connectionStatus.classList.remove('bg-danger');
+        elements.connectionStatus.classList.add('bg-success');
+        elements.deviceInfo.textContent = deviceId;
+        
+        // 启用相关按钮
+        elements.takeScreenshot.disabled = false;
+        elements.btnBack.disabled = false;
+        elements.btnHome.disabled = false;
+        elements.enableTap.disabled = false;
+    } else {
+        elements.connectionStatus.textContent = '未连接';
+        elements.connectionStatus.classList.remove('bg-success');
+        elements.connectionStatus.classList.add('bg-danger');
+        elements.deviceInfo.textContent = '';
+        
+        // 禁用相关按钮
+        elements.takeScreenshot.disabled = true;
+        elements.btnBack.disabled = true;
+        elements.btnHome.disabled = true;
+        elements.enableTap.disabled = true;
+        elements.enableTap.checked = false;
+        elements.screenOverlay.classList.add('d-none');
+    }
+}
+
+// 获取屏幕截图
+function takeScreenshot() {
+    // 显示加载状态
+    elements.screenshotImg.classList.add('d-none');
+    elements.noScreenshot.classList.remove('d-none');
+    elements.noScreenshot.innerHTML = '<div class="spinner-border text-primary" role="status"></div><p class="mt-2">正在获取截图...</p>';
+    
+    // 显示进度提示
+    const progressText = document.createElement('div');
+    progressText.className = 'text-muted small mt-2';
+    progressText.innerHTML = '正在连接设备...';
+    elements.noScreenshot.appendChild(progressText);
+    
+    // 按钮状态
+    const originalButtonText = elements.takeScreenshot.innerHTML;
+    elements.takeScreenshot.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 获取中...';
+    elements.takeScreenshot.disabled = true;
+    
+    // 发送请求获取截图
+    fetch('/screenshot')
+        .then(response => {
+            progressText.innerHTML = '正在处理图像...';
+            return response.json();
+        })
+        .then(data => {
+            if (data.status === 'success') {
+                // 显示截图
+                currentScreenshot = data.image;
+                const imageUrl = `data:image/png;base64,${data.image}`;
+                
+                // 预加载图像
+                const img = new Image();
+                img.onload = function() {
+                    // 图像加载完成，显示到UI
+                    elements.screenshotImg.src = imageUrl;
+                    elements.screenshotImg.classList.remove('d-none');
+                    elements.noScreenshot.classList.add('d-none');
+                    
+                    // 存储屏幕尺寸
+                    currentScreenSize = data.screen_size || [img.naturalWidth, img.naturalHeight];
+                    elements.screenResolution.textContent = `${currentScreenSize[0]} × ${currentScreenSize[1]}`;
+                    
+                    // 更新截图时间
+                    const timestamp = new Date(data.timestamp);
+                    elements.screenshotTime.textContent = timestamp.toLocaleTimeString();
+                    
+                    // 如果启用了点击功能，显示叠加层
+                    if (elements.enableTap.checked) {
+                        elements.screenOverlay.classList.remove('d-none');
+                    }
+                    
+                    // 可交互提示
+                    showToast('成功', '截图已更新 - 可点击屏幕进行交互');
+                };
+                img.src = imageUrl;
+            } else {
+                elements.noScreenshot.innerHTML = '<i class="bi bi-exclamation-triangle display-1 text-warning"></i><p class="text-muted">获取截图失败</p>';
+                showToast('错误', data.message || '获取截图失败');
+            }
+        })
+        .catch(error => {
+            console.error('获取截图时出错:', error);
+            elements.noScreenshot.innerHTML = '<i class="bi bi-exclamation-triangle display-1 text-warning"></i><p class="text-muted">获取截图失败</p><p class="small text-danger">网络错误: ' + error.message + '</p>';
+            showToast('错误', '无法连接到服务器');
+        })
+        .finally(() => {
+            // 恢复按钮状态
+            elements.takeScreenshot.innerHTML = originalButtonText;
+            elements.takeScreenshot.disabled = false;
+        });
+}
+}
+
+// 切换点击功能
+function toggleTapFeature() {
+    if (elements.enableTap.checked) {
+        if (elements.screenshotImg.classList.contains('d-none')) {
+            showToast('提示', '请先获取截图');
+            elements.enableTap.checked = false;
+            return;
+        }
+        elements.screenOverlay.classList.remove('d-none');
+    } else {
+        elements.screenOverlay.classList.add('d-none');
+    }
+}
+
+// 处理屏幕点击
+function handleScreenTap(e) {
+    // 获取点击坐标
+    const rect = elements.screenshotImg.getBoundingClientRect();
+    const scaleX = currentScreenSize[0] / rect.width;
+    const scaleY = currentScreenSize[1] / rect.height;
+    
+    const x = Math.round((e.clientX - rect.left) * scaleX);
+    const y = Math.round((e.clientY - rect.top) * scaleY);
+    
+    // 显示点击动画
+    elements.tapIndicator.style.left = `${e.clientX - rect.left}px`;
+    elements.tapIndicator.style.top = `${e.clientY - rect.top}px`;
+    elements.tapIndicator.classList.remove('d-none');
+    
+    // 添加波纹效果
+    const ripple = document.createElement('div');
+    ripple.className = 'tap-ripple';
+    ripple.style.left = `${e.clientX - rect.left}px`;
+    ripple.style.top = `${e.clientY - rect.top}px`;
+    elements.screenOverlay.appendChild(ripple);
+    
+    // 显示坐标信息
+    elements.tapCoordinates.textContent = `点击坐标: (${x}, ${y})`;
+    elements.tapCoordinates.classList.add('tap-coordinates-visible');
+    
+    // 复制到剪贴板按钮
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'btn btn-sm btn-primary copy-coordinates ms-2';
+    copyBtn.innerHTML = '<i class="bi bi-clipboard"></i> 复制坐标';
+    copyBtn.onclick = function() {
+        navigator.clipboard.writeText(`${x}, ${y}`).then(() => {
+            showToast('成功', '坐标已复制到剪贴板');
+            copyBtn.innerHTML = '<i class="bi bi-check"></i> 已复制';
+            copyBtn.classList.replace('btn-primary', 'btn-success');
+            setTimeout(() => {
+                copyBtn.innerHTML = '<i class="bi bi-clipboard"></i> 复制坐标';
+                copyBtn.classList.replace('btn-success', 'btn-primary');
+            }, 2000);
+        });
+    };
+    
+    // 移除旧的复制按钮
+    const oldCopyBtn = elements.tapCoordinates.querySelector('.copy-coordinates');
+    if (oldCopyBtn) {
+        oldCopyBtn.remove();
+    }
+    
+    // 添加新的复制按钮
+    elements.tapCoordinates.appendChild(copyBtn);
+    
+    // 发送点击请求
+    fetch('/tap', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            x: x,
+            y: y
+        })
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status !== 'success') {
+                showToast('错误', data.message || '点击操作失败');
+            } else {
+                // 显示成功反馈
+                const successIndicator = document.createElement('div');
+                successIndicator.className = 'tap-success';
+                successIndicator.style.left = `${e.clientX - rect.left}px`;
+                successIndicator.style.top = `${e.clientY - rect.top}px`;
+                successIndicator.innerHTML = '<i class="bi bi-check-circle-fill"></i>';
+                elements.screenOverlay.appendChild(successIndicator);
+                
+                setTimeout(() => {
+                    successIndicator.remove();
+                }, 1000);
+            }
+        })
+        .catch(error => {
+            console.error('点击屏幕时出错:', error);
+            showToast('错误', '无法连接到服务器');
+        });
+    
+    // 重置动画
+    setTimeout(() => {
+        elements.tapIndicator.classList.add('d-none');
+        ripple.remove();
+        
+        // 3秒后隐藏坐标信息
+        setTimeout(() => {
+            elements.tapCoordinates.classList.remove('tap-coordinates-visible');
+        }, 3000);
+    }, 600);
+}
+}
+
+// 按下返回键
+function pressBackButton() {
+    fetch('/key', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            key_code: 4  // 返回键的keycode
+        })
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status !== 'success') {
+                showToast('错误', data.message);
+            }
+        })
+        .catch(error => {
+            console.error('按下返回键时出错:', error);
+            showToast('错误', '无法连接到服务器');
+        });
+}
+
+// 按下Home键
+function pressHomeButton() {
+    fetch('/key', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            key_code: 3  // Home键的keycode
+        })
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status !== 'success') {
+                showToast('错误', data.message);
+            }
+        })
+        .catch(error => {
+            console.error('按下Home键时出错:', error);
+            showToast('错误', '无法连接到服务器');
+        });
+}
+
+// 渲染任务列表
+function renderTaskList() {
+    // 获取任务列表
+    fetch('/tasks')
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                tasks = data.tasks;
+                
+                // 清空任务列表
+                elements.taskList.innerHTML = '';
+                
+                // 添加任务项
+                if (tasks.length > 0) {
+                    tasks.forEach(task => {
+                        const taskItem = createTaskListItem(task);
+                        elements.taskList.appendChild(taskItem);
+                    });
+                } else {
+                    // 显示空列表提示
+                    elements.taskList.innerHTML = `
+                        <div class="list-group-item text-center text-muted py-5">
+                            <i class="bi bi-clipboard-x display-6"></i>
+                            <p>暂无任务</p>
+                            <button id="btn-create-first-task" class="btn btn-sm btn-outline-primary">
+                                创建第一个任务
+                            </button>
+                        </div>
+                    `;
+                    document.getElementById('btn-create-first-task').addEventListener('click', createNewTask);
+                }
+            } else {
+                showToast('错误', data.message || '获取任务列表失败');
+            }
+        })
+        .catch(error => {
+            console.error('获取任务列表时出错:', error);
+            showToast('错误', '无法连接到服务器');
+        });
+}
+
+// 创建任务列表项
+function createTaskListItem(task) {
+    const li = document.createElement('div');
+    li.className = `list-group-item task-item ${task.task_type} ${task.enabled ? '' : 'disabled'} mb-3`;
+    li.dataset.taskId = task.id;
+    
+    // 任务类型图标和颜色
+    let typeIcon, typeBadgeClass;
+    switch (task.task_type) {
+        case 'simple':
+            typeIcon = 'bi-play-circle';
+            typeBadgeClass = 'bg-primary';
+            break;
+        case 'conditional':
+            typeIcon = 'bi-code-slash';
+            typeBadgeClass = 'bg-info';
+            break;
+        case 'loop':
+            typeIcon = 'bi-arrow-repeat';
+            typeBadgeClass = 'bg-warning';
+            break;
+        default:
+            typeIcon = 'bi-question-circle';
+            typeBadgeClass = 'bg-secondary';
+    }
+    
+    // 计算统计信息
+    const conditionsCount = task.conditions ? task.conditions.length : 0;
+    const actionsCount = task.actions ? task.actions.length : 0;
+    const childrenCount = task.children ? task.children.length : 0;
+    
+    // 运行状态标志
+    const isRunning = runningTasks.includes(task.id);
+    const statusBadge = isRunning ? 
+        `<span class="badge bg-success ms-2 running-badge"><i class="bi bi-lightning-fill"></i> 运行中</span>` : '';
+    
+    // 构建内容
+    li.innerHTML = `
+        <div class="card shadow-sm border-0">
+            <div class="card-header ${typeBadgeClass} text-white d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <i class="bi ${typeIcon} me-2"></i>
+                    <h6 class="mb-0">${task.name}</h6>
+                    ${statusBadge}
+                </div>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-light run-task" data-task-id="${task.id}" title="运行任务">
+                        <i class="bi bi-play-fill"></i>
+                    </button>
+                    <button class="btn btn-light edit-task" data-task-id="${task.id}" title="编辑任务">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-light delete-task" data-task-id="${task.id}" title="删除任务">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                    <button class="btn btn-light task-details-toggle" title="展开详情">
+                        <i class="bi bi-chevron-down"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body task-details p-3" style="display: none;">
+                <p class="card-text text-muted">${task.description || '无描述'}</p>
+                
+                <div class="row g-3 mt-2">
+                    <div class="col-md-4">
+                        <div class="card h-100 bg-light">
+                            <div class="card-body p-2">
+                                <h6 class="card-title d-flex align-items-center">
+                                    <i class="bi bi-filter-circle me-1"></i> 条件
+                                    <span class="badge ${conditionsCount > 0 ? 'bg-primary' : 'bg-secondary'} ms-2">${conditionsCount}</span>
+                                </h6>
+                                <ul class="list-group list-group-flush small">
+                                    ${conditionsCount > 0 ? task.conditions.map((c, i) => `
+                                        <li class="list-group-item px-0 py-1 border-0 bg-transparent">
+                                            <div class="d-flex">
+                                                <span class="badge ${c.type === 'text' ? 'bg-info' : 'bg-warning'} me-1">
+                                                    <i class="bi ${c.type === 'text' ? 'bi-fonts' : 'bi-image'}"></i>
+                                                </span>
+                                                <div class="text-truncate" title="${c.type === 'text' ? c.content : (c.template_name || '模板图片')}">
+                                                    ${c.type === 'text' ? c.content : (c.template_name || '模板图片')}
+                                                </div>
+                                            </div>
+                                        </li>
+                                    `).join('') : '<li class="list-group-item px-0 py-1 border-0 bg-transparent text-muted">无条件</li>'}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="card h-100 bg-light">
+                            <div class="card-body p-2">
+                                <h6 class="card-title d-flex align-items-center">
+                                    <i class="bi bi-lightning me-1"></i> 动作
+                                    <span class="badge ${actionsCount > 0 ? 'bg-primary' : 'bg-secondary'} ms-2">${actionsCount}</span>
+                                </h6>
+                                <ul class="list-group list-group-flush small">
+                                    ${actionsCount > 0 ? task.actions.map((a, i) => `
+                                        <li class="list-group-item px-0 py-1 border-0 bg-transparent">
+                                            <div class="d-flex">
+                                                <span class="badge bg-${getActionColor(a.type)} me-1">
+                                                    <i class="bi ${getActionIcon(a.type)}"></i>
+                                                </span>
+                                                <div class="text-truncate" title="${a.name}">
+                                                    ${a.name}
+                                                </div>
+                                            </div>
+                                        </li>
+                                    `).join('') : '<li class="list-group-item px-0 py-1 border-0 bg-transparent text-muted">无动作</li>'}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="card h-100 bg-light">
+                            <div class="card-body p-2">
+                                <h6 class="card-title d-flex align-items-center">
+                                    <i class="bi bi-diagram-2 me-1"></i> 子任务
+                                    <span class="badge ${childrenCount > 0 ? 'bg-primary' : 'bg-secondary'} ms-2">${childrenCount}</span>
+                                </h6>
+                                <ul class="list-group list-group-flush small">
+                                    ${childrenCount > 0 ? task.children.map((childId, i) => {
+                                        const childTask = tasks.find(t => t.id === childId);
+                                        return childTask ? `
+                                            <li class="list-group-item px-0 py-1 border-0 bg-transparent">
+                                                <div class="d-flex">
+                                                    <span class="badge bg-${getTaskTypeColor(childTask.task_type)} me-1">
+                                                        <i class="bi ${getTaskTypeIcon(childTask.task_type)}"></i>
+                                                    </span>
+                                                    <div class="text-truncate" title="${childTask.name}">
+                                                        ${childTask.name}
+                                                    </div>
+                                                </div>
+                                            </li>
+                                        ` : '';
+                                    }).join('') : '<li class="list-group-item px-0 py-1 border-0 bg-transparent text-muted">无子任务</li>'}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="d-flex justify-content-end mt-3">
+                    <button class="btn btn-sm btn-outline-primary duplicate-task" data-task-id="${task.id}">
+                        <i class="bi bi-files"></i> 复制任务
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // 绑定事件
+    li.querySelector('.run-task').addEventListener('click', e => {
+        e.stopPropagation();
+        executeTask(task.id);
+    });
+    
+    li.querySelector('.edit-task').addEventListener('click', e => {
+        e.stopPropagation();
+        editTask(task.id);
+    });
+    
+    li.querySelector('.delete-task').addEventListener('click', e => {
+        e.stopPropagation();
+        deleteTask(task.id);
+    });
+    
+    if (li.querySelector('.duplicate-task')) {
+        li.querySelector('.duplicate-task').addEventListener('click', e => {
+            e.stopPropagation();
+            duplicateTask(task.id);
+        });
+    }
+    
+    // 绑定详情切换
+    li.querySelector('.task-details-toggle').addEventListener('click', function(e) {
+        e.stopPropagation();
+        const detailsSection = li.querySelector('.task-details');
+        const icon = this.querySelector('i');
+        
+        if (detailsSection.style.display === 'none') {
+            detailsSection.style.display = 'block';
+            icon.classList.replace('bi-chevron-down', 'bi-chevron-up');
+        } else {
+            detailsSection.style.display = 'none';
+            icon.classList.replace('bi-chevron-up', 'bi-chevron-down');
+        }
+    });
+    
+    return li;
+}
+
+// 获取动作图标
+function getActionIcon(actionType) {
+    switch(actionType) {
+        case 'tap': return 'bi-hand-index';
+        case 'input': return 'bi-keyboard';
+        case 'wait': return 'bi-hourglass-split';
+        case 'key': return 'bi-command';
+        case 'swipe': return 'bi-arrows-move';
+        default: return 'bi-question-circle';
+    }
+}
+
+// 获取动作颜色
+function getActionColor(actionType) {
+    switch(actionType) {
+        case 'tap': return 'primary';
+        case 'input': return 'info';
+        case 'wait': return 'warning';
+        case 'key': return 'success';
+        case 'swipe': return 'danger';
+        default: return 'secondary';
+    }
+}
+
+// 获取任务类型图标
+function getTaskTypeIcon(taskType) {
+    switch(taskType) {
+        case 'simple': return 'bi-play-circle';
+        case 'conditional': return 'bi-code-slash';
+        case 'loop': return 'bi-arrow-repeat';
+        default: return 'bi-question-circle';
+    }
+}
+
+// 获取任务类型颜色
+function getTaskTypeColor(taskType) {
+    switch(taskType) {
+        case 'simple': return 'primary';
+        case 'conditional': return 'info';
+        case 'loop': return 'warning';
+        default: return 'secondary';
+    }
+}
+        editTask(task.id);
+    });
+    
+    li.querySelector('.delete-task').addEventListener('click', e => {
+        e.stopPropagation();
+        deleteTask(task.id);
+    });
+    
+    return li;
+}
+
+// 创建新任务
+function createNewTask() {
+    // 重置表单
+    elements.taskForm.reset();
+    elements.taskId.value = uuidv4();
+    
+    // 初始化表单状态
+    elements.taskType.value = 'simple';
+    handleTaskTypeChange();
+    
+    // 清空列表
+    elements.conditionsList.innerHTML = '';
+    elements.actionsList.innerHTML = '';
+    elements.childrenList.innerHTML = '';
+    elements.noConditions.style.display = 'block';
+    elements.noActions.style.display = 'block';
+    elements.noChildren.style.display = 'block';
+    
+    // 设置为新任务
+    editingTask = {
+        id: elements.taskId.value,
+        name: '新建任务',
+        description: '',
+        task_type: 'simple',
+        loop_count: 1,
+        enabled: true,
+        conditions: [],
+        actions: [],
+        children: []
+    };
+    
+    // 打开模态框
+    elements.taskModal.show();
+}
+
+// 处理任务类型变化
+function handleTaskTypeChange() {
+    const taskType = elements.taskType.value;
+    
+    // 根据任务类型显示/隐藏相关字段
+    if (taskType === 'conditional') {
+        elements.conditionsGroup.classList.remove('d-none');
+        elements.childrenGroup.classList.remove('d-none');
+        elements.loopCountGroup.classList.add('d-none');
+    } else if (taskType === 'loop') {
+        elements.conditionsGroup.classList.add('d-none');
+        elements.childrenGroup.classList.remove('d-none');
+        elements.loopCountGroup.classList.remove('d-none');
+    } else {
+        // simple
+        elements.conditionsGroup.classList.add('d-none');
+        elements.childrenGroup.classList.add('d-none');
+        elements.loopCountGroup.classList.add('d-none');
+    }
+}
+
+// 打开条件模态框
+function openConditionModal(existingCondition = null) {
+    // 重置表单
+    elements.conditionForm.reset();
+    
+    // 隐藏所有条件相关内容
+    elements.textConditionGroup.classList.add('d-none');
+    elements.templateConditionGroup.classList.add('d-none');
+    elements.templateAnalyzerOption.classList.add('d-none');
+    
+    // 清除模板图片预览
+    elements.templatePreviewContainer.classList.add('d-none');
+    elements.templatePreview.src = '';
+    elements.templateName.textContent = '';
+    elements.templateStatus.textContent = '';
+    
+    // 设置默认值
+    elements.templateRegionX.value = 0;
+    elements.templateRegionY.value = 0;
+    elements.templateRegionWidth.value = 0;
+    elements.templateRegionHeight.value = 0;
+    
+    // 保存当前上传图片数据
+    currentTemplateImage = null;
+    
+    if (existingCondition) {
+        // 编辑现有条件
+        editingCondition = existingCondition;
+        elements.conditionId.value = existingCondition.id;
+        elements.conditionType.value = existingCondition.type;
+        elements.conditionContent.value = existingCondition.content || '';
+        elements.conditionAnalyzer.value = existingCondition.analyzer;
+        elements.conditionConfidence.value = existingCondition.confidence;
+        elements.confidenceValue.textContent = existingCondition.confidence;
+        
+        // 如果是模板匹配条件，显示模板预览
+        if (existingCondition.type === 'template' && existingCondition.template_image) {
+            currentTemplateImage = existingCondition.template_image;
+            elements.templatePreviewContainer.classList.remove('d-none');
+            elements.templatePreview.src = `data:image/png;base64,${existingCondition.template_image}`;
+            elements.templateName.textContent = existingCondition.template_name || '模板图片';
+            elements.templateStatus.textContent = '已上传';
+            
+            // 显示区域设置
+            if (existingCondition.template_region) {
+                elements.templateRegionX.value = existingCondition.template_region.x || 0;
+                elements.templateRegionY.value = existingCondition.template_region.y || 0;
+                elements.templateRegionWidth.value = existingCondition.template_region.width || 0;
+                elements.templateRegionHeight.value = existingCondition.template_region.height || 0;
+            }
+        }
+    } else {
+        // 新建条件
+        elements.conditionId.value = uuidv4();
+        elements.conditionType.value = 'text';
+        elements.conditionContent.value = '';
+        elements.conditionAnalyzer.value = 'ocr';
+        elements.conditionConfidence.value = '0.7';
+        elements.confidenceValue.textContent = '0.7';
+        
+        editingCondition = null;
+    }
+    
+    // 根据条件类型显示相应的内容
+    handleConditionTypeChange();
+    
+    // 打开模态框
+    elements.conditionModal.show();
+}
+
+// 处理条件类型变化
+function handleConditionTypeChange() {
+    const conditionType = elements.conditionType.value;
+    
+    // 隐藏所有条件相关内容
+    elements.textConditionGroup.classList.add('d-none');
+    elements.templateConditionGroup.classList.add('d-none');
+    elements.templateAnalyzerOption.classList.add('d-none');
+    
+    // 根据条件类型显示相应的内容
+    if (conditionType === 'text') {
+        elements.textConditionGroup.classList.remove('d-none');
+        
+        // 对于文本检测，可以使用OCR或AI分析器
+        elements.conditionAnalyzer.value = elements.conditionAnalyzer.value === 'template' ? 'ocr' : elements.conditionAnalyzer.value;
+    } else if (conditionType === 'template') {
+        elements.templateConditionGroup.classList.remove('d-none');
+        elements.templateAnalyzerOption.classList.remove('d-none');
+        
+        // 对于模板匹配，强制使用模板分析器
+        elements.conditionAnalyzer.value = 'template';
+    }
+}
+
+// 上传模板图片
+function uploadTemplateImage() {
+    const fileInput = elements.templateImageFile;
+    
+    if (!fileInput.files || fileInput.files.length === 0) {
+        showToast('提示', '请先选择模板图片');
+        return;
+    }
+    
+    const file = fileInput.files[0];
+    const formData = new FormData();
+    formData.append('template_image', file);
+    
+    // 显示上传中状态
+    elements.templateStatus.textContent = '上传中...';
+    elements.uploadTemplateBtn.disabled = true;
+    
+    // 显示进度条
+    const progressBar = document.createElement('div');
+    progressBar.className = 'progress mt-2';
+    progressBar.innerHTML = '<div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>';
+    elements.templatePreviewContainer.appendChild(progressBar);
+    
+    // 发送上传请求
+    fetch('/upload_template', {
+        method: 'POST',
+        body: formData
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                // 显示预览
+                elements.templatePreviewContainer.classList.remove('d-none');
+                elements.templatePreview.src = `data:image/png;base64,${data.template_image}`;
+                elements.templateName.textContent = data.template_name || file.name;
+                elements.templateStatus.textContent = '已上传';
+                
+                // 保存图片数据
+                currentTemplateImage = data.template_image;
+                
+                // 模拟进度条完成
+                const progressBarInner = progressBar.querySelector('.progress-bar');
+                progressBarInner.style.width = '100%';
+                
+                setTimeout(() => {
+                    // 移除进度条
+                    progressBar.remove();
+                }, 500);
+                
+                showToast('成功', '模板图片上传成功');
+            } else {
+                elements.templateStatus.textContent = '上传失败';
+                progressBar.remove();
+                showToast('错误', data.message || '上传失败');
+            }
+        })
+        .catch(error => {
+            console.error('上传模板图片时出错:', error);
+            elements.templateStatus.textContent = '上传失败';
+            progressBar.remove();
+            showToast('错误', '无法连接到服务器');
+        })
+        .finally(() => {
+            elements.uploadTemplateBtn.disabled = false;
+        });
+}
+
+// 保存条件表单
+function saveConditionForm() {
+    // 验证表单
+    if (elements.conditionType.value === 'text' && !elements.conditionContent.value) {
+        showToast('错误', '请输入检测内容');
+        return;
+    }
+    
+    if (elements.conditionType.value === 'template' && !currentTemplateImage) {
+        showToast('错误', '请先上传模板图片');
+        return;
+    }
+    
+    // 创建条件对象
+    const condition = {
+        id: elements.conditionId.value,
+        type: elements.conditionType.value,
+        content: elements.conditionContent.value,
+        analyzer: elements.conditionAnalyzer.value,
+        confidence: parseFloat(elements.conditionConfidence.value)
+    };
+    
+    // 如果是模板匹配条件，添加模板相关信息
+    if (elements.conditionType.value === 'template') {
+        condition.template_image = currentTemplateImage;
+        condition.template_name = elements.templateName.textContent;
+        condition.template_region = {
+            x: parseInt(elements.templateRegionX.value) || 0,
+            y: parseInt(elements.templateRegionY.value) || 0,
+            width: parseInt(elements.templateRegionWidth.value) || 0,
+            height: parseInt(elements.templateRegionHeight.value) || 0
+        };
+    }
+    
+    // 添加到任务中
+    if (editingCondition) {
+        // 更新现有条件
+        const index = editingTask.conditions.findIndex(c => c.id === condition.id);
+        if (index !== -1) {
+            editingTask.conditions[index] = condition;
+        }
+    } else {
+        // 添加新条件
+        editingTask.conditions.push(condition);
+    }
+    
+    // 关闭模态框
+    elements.conditionModal.hide();
+    
+    // 更新条件列表
+    renderConditionsList();
+}
+
+// 渲染条件列表
+function renderConditionsList() {
+    // 清空列表
+    elements.conditionsList.innerHTML = '';
+    
+    // 显示条件
+    if (editingTask.conditions.length > 0) {
+        elements.noConditions.style.display = 'none';
+        
+        editingTask.conditions.forEach(condition => {
+            const conditionItem = document.createElement('div');
+            conditionItem.className = 'list-group-item condition-item';
+            
+            let typeText = condition.type === 'text' ? '文本检测' : '图像模板';
+            let analyzerIcon = '';
+            
+            // 根据分析器类型设置图标
+            switch(condition.analyzer) {
+                case 'ocr':
+                    analyzerIcon = 'bi-text-paragraph';
+                    break;
+                case 'ai':
+                    analyzerIcon = 'bi-cpu';
+                    break;
+                case 'template':
+                    analyzerIcon = 'bi-image';
+                    break;
+                default:
+                    analyzerIcon = 'bi-question-circle';
+            }
+            
+            // 设置内容显示
+            let contentDisplay = '';
+            if (condition.type === 'text') {
+                contentDisplay = condition.content;
+            } else if (condition.type === 'template') {
+                contentDisplay = condition.template_name || '模板图片';
+            }
+            
+            conditionItem.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="badge bg-info me-2">${typeText}</span>
+                        <span class="badge bg-success me-2">
+                            <i class="bi ${analyzerIcon}"></i> ${condition.analyzer.toUpperCase()}
+                        </span>
+                        <span>${contentDisplay}</span>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-sm btn-outline-primary edit-condition" data-condition-id="${condition.id}">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger delete-condition" data-condition-id="${condition.id}">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            // 绑定事件
+            conditionItem.querySelector('.edit-condition').addEventListener('click', e => {
+                e.preventDefault();
+                const conditionId = e.target.closest('.edit-condition').dataset.conditionId;
+                const condition = editingTask.conditions.find(c => c.id === conditionId);
+                if (condition) {
+                    openConditionModal(condition);
+                }
+            });
+            
+            conditionItem.querySelector('.delete-condition').addEventListener('click', e => {
+                e.preventDefault();
+                const conditionId = e.target.closest('.delete-condition').dataset.conditionId;
+                editingTask.conditions = editingTask.conditions.filter(c => c.id !== conditionId);
+                renderConditionsList();
+            });
+            
+            elements.conditionsList.appendChild(conditionItem);
+        });
+    } else {
+        elements.noConditions.style.display = 'block';
+    }
+}
+
+// 打开动作模态框
+function openActionModal(actionType, existingAction = null) {
+    // 重置表单
+    elements.actionForm.reset();
+    
+    // 隐藏所有动作字段
+    elements.actionFields.forEach(field => {
+        field.classList.add('d-none');
+    });
+    
+    // 显示相应类型的字段
+    const fieldId = `${actionType}-action-fields`;
+    document.getElementById(fieldId).classList.remove('d-none');
+    
+    if (existingAction) {
+        // 编辑现有动作
+        editingAction = existingAction;
+        elements.actionId.value = existingAction.id;
+        elements.actionType.value = existingAction.type;
+        elements.actionName.value = existingAction.name;
+        
+        // 根据动作类型设置相应的字段
+        switch (actionType) {
+            case 'tap':
+                elements.tapX.value = existingAction.x;
+                elements.tapY.value = existingAction.y;
+                break;
+            case 'input':
+                elements.inputText.value = existingAction.text;
+                break;
+            case 'wait':
+                elements.waitSeconds.value = existingAction.seconds;
+                break;
+            case 'key':
+                elements.keyCode.value = existingAction.key_code;
+                break;
+            case 'swipe':
+                elements.swipeX1.value = existingAction.x1;
+                elements.swipeY1.value = existingAction.y1;
+                elements.swipeX2.value = existingAction.x2;
+                elements.swipeY2.value = existingAction.y2;
+                elements.swipeDuration.value = existingAction.duration;
+                break;
+        }
+    } else {
+        // 新建动作
+        elements.actionId.value = uuidv4();
+        elements.actionType.value = actionType;
+        
+        // 设置默认动作名称
+        switch (actionType) {
+            case 'tap':
+                elements.actionName.value = '点击屏幕';
+                break;
+            case 'input':
+                elements.actionName.value = '输入文本';
+                break;
+            case 'wait':
+                elements.actionName.value = '等待';
+                break;
+            case 'key':
+                elements.actionName.value = '按键';
+                break;
+            case 'swipe':
+                elements.actionName.value = '滑动屏幕';
+                break;
+        }
+        
+        editingAction = null;
+    }
+    
+    // 更新模态框标题
+    document.getElementById('action-modal-title').textContent = existingAction ? '编辑动作' : '添加动作';
+    
+    // 打开模态框
+    elements.actionModal.show();
+}
+
+// 保存动作表单
+function saveActionForm() {
+    // 验证表单
+    if (!elements.actionName.value) {
+        showToast('错误', '请输入动作名称');
+        return;
+    }
+    
+    const actionType = elements.actionType.value;
+    
+    // 创建动作基本信息
+    const action = {
+        id: elements.actionId.value,
+        type: actionType,
+        name: elements.actionName.value
+    };
+    
+    // 根据动作类型添加特定字段
+    switch (actionType) {
+        case 'tap':
+            if (!elements.tapX.value || !elements.tapY.value) {
+                showToast('错误', '请输入点击坐标');
+                return;
+            }
+            action.x = parseInt(elements.tapX.value);
+            action.y = parseInt(elements.tapY.value);
+            break;
+            
+        case 'input':
+            if (!elements.inputText.value) {
+                showToast('错误', '请输入文本内容');
+                return;
+            }
+            action.text = elements.inputText.value;
+            break;
+            
+        case 'wait':
+            if (!elements.waitSeconds.value) {
+                showToast('错误', '请输入等待时间');
+                return;
+            }
+            action.seconds = parseFloat(elements.waitSeconds.value);
+            break;
+            
+        case 'key':
+            action.key_code = parseInt(elements.keyCode.value);
+            // 设置按键名称
+            const keyNames = {
+                '3': 'Home键',
+                '4': '返回键',
+                '26': '电源键',
+                '24': '音量+',
+                '25': '音量-',
+                '66': '回车键',
+                '61': 'Tab键'
+            };
+            action.key_name = keyNames[action.key_code] || `按键${action.key_code}`;
+            break;
+            
+        case 'swipe':
+            if (!elements.swipeX1.value || !elements.swipeY1.value || 
+                !elements.swipeX2.value || !elements.swipeY2.value || 
+                !elements.swipeDuration.value) {
+                showToast('错误', '请输入滑动参数');
+                return;
+            }
+            action.x1 = parseInt(elements.swipeX1.value);
+            action.y1 = parseInt(elements.swipeY1.value);
+            action.x2 = parseInt(elements.swipeX2.value);
+            action.y2 = parseInt(elements.swipeY2.value);
+            action.duration = parseInt(elements.swipeDuration.value);
+            break;
+    }
+    
+    // 添加到任务中
+    if (editingAction) {
+        // 更新现有动作
+        const index = editingTask.actions.findIndex(a => a.id === action.id);
+        if (index !== -1) {
+            editingTask.actions[index] = action;
+        }
+    } else {
+        // 添加新动作
+        editingTask.actions.push(action);
+    }
+    
+    // 关闭模态框
+    elements.actionModal.hide();
+    
+    // 更新动作列表
+    renderActionsList();
+}
+
+// 渲染动作列表
+function renderActionsList() {
+    // 清空列表
+    elements.actionsList.innerHTML = '';
+    
+    // 显示动作
+    if (editingTask.actions.length > 0) {
+        elements.noActions.style.display = 'none';
+        
+        editingTask.actions.forEach(action => {
+            const actionItem = document.createElement('div');
+            actionItem.className = `list-group-item action-item ${action.type}`;
+            
+            // 根据动作类型设置图标和内容
+            let icon, details;
+            switch (action.type) {
+                case 'tap':
+                    icon = 'bi-hand-index';
+                    details = `坐标: (${action.x}, ${action.y})`;
+                    break;
+                case 'input':
+                    icon = 'bi-keyboard';
+                    details = `文本: "${action.text.length > 20 ? action.text.substring(0, 20) + '...' : action.text}"`;
+                    break;
+                case 'wait':
+                    icon = 'bi-hourglass-split';
+                    details = `时间: ${action.seconds}秒`;
+                    break;
+                case 'key':
+                    icon = 'bi-command';
+                    details = `按键: ${action.key_name}`;
+                    break;
+                case 'swipe':
+                    icon = 'bi-arrows-move';
+                    details = `从(${action.x1}, ${action.y1})到(${action.x2}, ${action.y2})`;
+                    break;
+                default:
+                    icon = 'bi-question-circle';
+                    details = '';
+            }
+            
+            actionItem.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="bi ${icon} me-2"></i>
+                        <span>${action.name}</span>
+                        <small class="text-muted ms-2">${details}</small>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-sm btn-outline-primary edit-action" data-action-id="${action.id}">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger delete-action" data-action-id="${action.id}">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            // 绑定事件
+            actionItem.querySelector('.edit-action').addEventListener('click', e => {
+                e.preventDefault();
+                const actionId = e.target.closest('.edit-action').dataset.actionId;
+                const action = editingTask.actions.find(a => a.id === actionId);
+                if (action) {
+                    openActionModal(action.type, action);
+                }
+            });
+            
+            actionItem.querySelector('.delete-action').addEventListener('click', e => {
+                e.preventDefault();
+                const actionId = e.target.closest('.delete-action').dataset.actionId;
+                editingTask.actions = editingTask.actions.filter(a => a.id !== actionId);
+                renderActionsList();
+            });
+            
+            elements.actionsList.appendChild(actionItem);
+        });
+    } else {
+        elements.noActions.style.display = 'block';
+    }
+}
+
+// 打开坐标选择器
+function openCoordinatePicker() {
+    if (!currentScreenshot) {
+        showToast('提示', '请先获取屏幕截图');
+        return;
+    }
+    
+    // 设置当前选择的字段
+    pickingForField = 'tap';
+    
+    // 设置截图
+    elements.pickerScreenshot.src = `data:image/png;base64,${currentScreenshot}`;
+    
+    // 重置状态
+    elements.pickerIndicator.classList.add('d-none');
+    elements.pickerCoordinates.textContent = '';
+    pickedCoordinates = null;
+    
+    // 添加辅助网格
+    const gridOverlay = document.createElement('div');
+    gridOverlay.className = 'grid-overlay';
+    elements.coordinatePickerContainer.appendChild(gridOverlay);
+    
+    // 添加放大镜功能
+    const magnifier = document.createElement('div');
+    magnifier.className = 'magnifier d-none';
+    magnifier.innerHTML = `
+        <div class="magnifier-content"></div>
+        <div class="magnifier-crosshair"></div>
+        <div class="magnifier-info"></div>
+    `;
+    elements.coordinatePickerContainer.appendChild(magnifier);
+    
+    // 添加放大镜移动功能
+    elements.pickerScreenshot.addEventListener('mousemove', function(e) {
+        const rect = elements.pickerScreenshot.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        // 显示放大镜
+        magnifier.classList.remove('d-none');
+        magnifier.style.left = (x + 20) + 'px';
+        magnifier.style.top = (y - 100) + 'px';
+        
+        // 获取放大镜内容
+        const magContent = magnifier.querySelector('.magnifier-content');
+        magContent.style.backgroundImage = `url(data:image/png;base64,${currentScreenshot})`;
+        
+        // 计算放大镜内容的位置
+        const magX = x * 3 - 75;
+        const magY = y * 3 - 75;
+        magContent.style.backgroundPosition = `-${magX}px -${magY}px`;
+        magContent.style.backgroundSize = (elements.pickerScreenshot.offsetWidth * 3) + 'px';
+        
+        // 更新坐标信息
+        const scaleX = currentScreenSize[0] / rect.width;
+        const scaleY = currentScreenSize[1] / rect.height;
+        const realX = Math.round(x * scaleX);
+        const realY = Math.round(y * scaleY);
+        
+        magnifier.querySelector('.magnifier-info').textContent = `${realX}, ${realY}`;
+    });
+    
+    // 鼠标离开时隐藏放大镜
+    elements.pickerScreenshot.addEventListener('mouseleave', function() {
+        magnifier.classList.add('d-none');
+    });
+    
+    // 确认选择按钮
+    const confirmButton = document.getElementById('confirm-coordinates');
+    confirmButton.disabled = !pickedCoordinates;
+    
+    // 打开模态框
+    elements.coordinatePickerModal.show();
+    
+    // 当模态框关闭时清理临时元素
+    document.getElementById('coordinate-picker-modal').addEventListener('hidden.bs.modal', function() {
+        gridOverlay.remove();
+        magnifier.remove();
+    }, { once: true });
+}
+
+// 更新选择器位置
+function updatePickerPosition(e) {
+    const rect = elements.pickerScreenshot.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    // 计算实际坐标
+    const scaleX = currentScreenSize[0] / rect.width;
+    const scaleY = currentScreenSize[1] / rect.height;
+    
+    const realX = Math.round(x * scaleX);
+    const realY = Math.round(y * scaleY);
+    
+    // 更新指示器位置
+    elements.pickerIndicator.style.left = `${x}px`;
+    elements.pickerIndicator.style.top = `${y}px`;
+    elements.pickerIndicator.classList.remove('d-none');
+    
+    // 添加波纹动画
+    const ripple = document.createElement('div');
+    ripple.className = 'tap-ripple';
+    ripple.style.left = `${x}px`;
+    ripple.style.top = `${y}px`;
+    elements.coordinatePickerContainer.appendChild(ripple);
+    
+    // 更新坐标文本
+    elements.pickerCoordinates.textContent = `已选择坐标: (${realX}, ${realY})`;
+    
+    // 保存坐标
+    pickedCoordinates = { x: realX, y: realY };
+    
+    // 启用确认按钮
+    document.getElementById('confirm-coordinates').disabled = false;
+    
+    // 移除波纹动画
+    setTimeout(() => {
+        ripple.remove();
+    }, 1000);
+}
+    elements.pickerCoordinates.textContent = `坐标: (${realX}, ${realY})`;
+}
+
+// 锁定选择器位置
+function lockPickerPosition(e) {
+    // 保存当前坐标
+    const rect = elements.pickerScreenshot.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    // 计算实际坐标
+    const scaleX = currentScreenSize[0] / rect.width;
+    const scaleY = currentScreenSize[1] / rect.height;
+    
+    const realX = Math.round(x * scaleX);
+    const realY = Math.round(y * scaleY);
+    
+    // 保存到全局变量
+    pickedCoordinates = { x: realX, y: realY };
+}
+
+// 确认坐标选择
+function confirmCoordinates() {
+    if (!pickedCoordinates) {
+        showToast('提示', '请先点击选择坐标');
+        return;
+    }
+    
+    // 根据当前选择的字段设置值
+    if (pickingForField === 'tap') {
+        elements.tapX.value = pickedCoordinates.x;
+        elements.tapY.value = pickedCoordinates.y;
+    }
+    
+    // 关闭模态框
+    elements.coordinatePickerModal.hide();
+}
+
+// 打开子任务选择模态框
+function openChildTaskModal() {
+    // 获取任务列表
+    fetch('/tasks')
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const availableTasks = data.tasks.filter(task => task.id !== editingTask.id);
+                
+                // 清空列表
+                elements.childTaskList.innerHTML = '';
+                
+                if (availableTasks.length > 0) {
+                    elements.noAvailableTasks.style.display = 'none';
+                    
+                    availableTasks.forEach(task => {
+                        const taskItem = document.createElement('button');
+                        taskItem.className = 'list-group-item list-group-item-action';
+                        taskItem.dataset.taskId = task.id;
+                        
+                        let typeIcon;
+                        switch (task.task_type) {
+                            case 'simple':
+                                typeIcon = 'bi-play-circle';
+                                break;
+                            case 'conditional':
+                                typeIcon = 'bi-code-slash';
+                                break;
+                            case 'loop':
+                                typeIcon = 'bi-arrow-repeat';
+                                break;
+                            default:
+                                typeIcon = 'bi-question-circle';
+                        }
+                        
+                        taskItem.innerHTML = `
+                            <div class="d-flex align-items-center">
+                                <i class="bi ${typeIcon} me-2"></i>
+                                <div>
+                                    <h6 class="mb-0">${task.name}</h6>
+                                    <small class="text-muted">${task.description || '无描述'}</small>
+                                </div>
+                            </div>
+                        `;
+                        
+                        // 绑定点击事件
+                        taskItem.addEventListener('click', e => {
+                            const selectedTaskId = e.currentTarget.dataset.taskId;
+                            const selectedTask = availableTasks.find(t => t.id === selectedTaskId);
+                            
+                            if (selectedTask) {
+                                // 检查是否已经添加过这个子任务
+                                const exists = editingTask.children.some(child => child.id === selectedTask.id);
+                                
+                                if (!exists) {
+                                    // 添加为子任务
+                                    editingTask.children.push(selectedTask);
+                                    
+                                    // 更新子任务列表
+                                    renderChildrenList();
+                                    
+                                    // 关闭模态框
+                                    elements.childTaskModal.hide();
+                                } else {
+                                    showToast('提示', '该任务已经添加为子任务');
+                                }
+                            }
+                        });
+                        
+                        elements.childTaskList.appendChild(taskItem);
+                    });
+                } else {
+                    elements.noAvailableTasks.style.display = 'block';
+                }
+            } else {
+                showToast('错误', data.message || '获取任务列表失败');
+            }
+            
+            // 打开模态框
+            elements.childTaskModal.show();
+        })
+        .catch(error => {
+            console.error('获取任务列表时出错:', error);
+            showToast('错误', '无法连接到服务器');
+        });
+}
+
+// 渲染子任务列表
+function renderChildrenList() {
+    // 清空列表
+    elements.childrenList.innerHTML = '';
+    
+    // 显示子任务
+    if (editingTask.children.length > 0) {
+        elements.noChildren.style.display = 'none';
+        
+        editingTask.children.forEach(child => {
+            const childItem = document.createElement('div');
+            childItem.className = 'list-group-item child-task-item';
+            
+            let typeIcon;
+            switch (child.task_type) {
+                case 'simple':
+                    typeIcon = 'bi-play-circle';
+                    break;
+                case 'conditional':
+                    typeIcon = 'bi-code-slash';
+                    break;
+                case 'loop':
+                    typeIcon = 'bi-arrow-repeat';
+                    break;
+                default:
+                    typeIcon = 'bi-question-circle';
+            }
+            
+            childItem.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="bi ${typeIcon} me-2"></i>
+                        <span>${child.name}</span>
+                    </div>
+                    <button class="btn btn-sm btn-outline-danger delete-child" data-task-id="${child.id}">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            `;
+            
+            // 绑定删除事件
+            childItem.querySelector('.delete-child').addEventListener('click', e => {
+                e.preventDefault();
+                const taskId = e.target.closest('.delete-child').dataset.taskId;
+                editingTask.children = editingTask.children.filter(c => c.id !== taskId);
+                renderChildrenList();
+            });
+            
+            elements.childrenList.appendChild(childItem);
+        });
+    } else {
+        elements.noChildren.style.display = 'block';
+    }
+}
+
+// 保存任务表单
+function saveTaskForm() {
+    // 验证表单
+    if (!elements.taskName.value) {
+        showToast('错误', '请输入任务名称');
+        return;
+    }
+    
+    // 更新任务信息
+    editingTask.name = elements.taskName.value;
+    editingTask.description = elements.taskDescription.value;
+    editingTask.task_type = elements.taskType.value;
+    
+    if (editingTask.task_type === 'loop') {
+        editingTask.loop_count = parseInt(elements.loopCount.value) || 1;
+    }
+    
+    // 保存任务
+    fetch(editingTask.id ? `/tasks/${editingTask.id}` : '/tasks', {
+        method: editingTask.id ? 'PUT' : 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(editingTask)
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                // 关闭模态框
+                elements.taskModal.hide();
+                
+                // 刷新任务列表
+                renderTaskList();
+                
+                showToast('成功', `任务"${editingTask.name}"已保存`);
+            } else {
+                showToast('错误', data.message || '保存任务失败');
+            }
+        })
+        .catch(error => {
+            console.error('保存任务时出错:', error);
+            showToast('错误', '无法连接到服务器');
+        });
+}
+
+// 编辑任务
+function editTask(taskId) {
+    // 获取任务信息
+    fetch(`/tasks`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const task = data.tasks.find(t => t.id === taskId);
+                
+                if (task) {
+                    // 设置当前编辑的任务
+                    editingTask = task;
+                    
+                    // 填充表单
+                    elements.taskId.value = task.id;
+                    elements.taskName.value = task.name;
+                    elements.taskDescription.value = task.description || '';
+                    elements.taskType.value = task.task_type;
+                    
+                    if (task.task_type === 'loop') {
+                        elements.loopCount.value = task.loop_count || 1;
+                    }
+                    
+                    // 更新UI
+                    handleTaskTypeChange();
+                    renderConditionsList();
+                    renderActionsList();
+                    renderChildrenList();
+                    
+                    // 打开模态框
+                    elements.taskModal.show();
+                } else {
+                    showToast('错误', '未找到任务');
+                }
+            } else {
+                showToast('错误', data.message || '获取任务信息失败');
+            }
+        })
+        .catch(error => {
+            console.error('编辑任务时出错:', error);
+            showToast('错误', '无法连接到服务器');
+        });
+}
+
+// 复制任务
+function duplicateTask(taskId) {
+    // 查找原任务
+    const originalTask = tasks.find(t => t.id === taskId);
+    
+    if (!originalTask) {
+        showToast('错误', '未找到要复制的任务');
+        return;
+    }
+    
+    // 创建新任务的副本
+    const newTask = JSON.parse(JSON.stringify(originalTask));
+    
+    // 设置新ID和名称
+    newTask.id = uuidv4();
+    newTask.name = `${originalTask.name} (副本)`;
+    
+    // 发送创建请求
+    fetch('/tasks', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(newTask)
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                // 刷新任务列表
+                renderTaskList();
+                showToast('成功', `已复制任务: ${newTask.name}`);
+            } else {
+                showToast('错误', data.message || '复制任务失败');
+            }
+        })
+        .catch(error => {
+            console.error('复制任务时出错:', error);
+            showToast('错误', '无法连接到服务器');
+        });
+}
+
+// 执行任务
+function executeTask(taskId) {
+    if (!elements.connectionStatus.classList.contains('bg-success')) {
+        showToast('提示', '请先连接设备', 'warning');
+        return;
+    }
+    
+    // 获取任务信息
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) {
+        showToast('错误', '任务不存在', 'danger');
+        return;
+    }
+    
+    // 如果任务已在运行，则显示提示
+    if (runningTasks.includes(taskId)) {
+        showToast('提示', `任务"${task.name}"正在运行中`, 'info');
+        return;
+    }
+    
+    // 添加到运行列表
+    runningTasks.push(taskId);
+    
+    // 创建执行日志对象
+    taskExecutionLogs[taskId] = {
+        startTime: new Date(),
+        status: 'running',
+        logs: [`[${new Date().toLocaleTimeString()}] 开始执行任务: ${task.name}`]
+    };
+    
+    // 更新UI显示任务正在运行
+    updateTaskRunningStatus(taskId, true);
+    
+    // 显示执行进度弹窗
+    const modalId = `task-execution-modal-${taskId}`;
+    let modalElement = document.getElementById(modalId);
+    
+    if (!modalElement) {
+        // 创建模态框
+        modalElement = document.createElement('div');
+        modalElement.id = modalId;
+        modalElement.className = 'modal fade';
+        modalElement.setAttribute('tabindex', '-1');
+        modalElement.setAttribute('aria-hidden', 'true');
+        
+        modalElement.innerHTML = `
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title">
+                            <i class="bi bi-play-circle me-2"></i>
+                            执行任务: ${task.name}
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="task-progress mb-3">
+                            <div class="progress">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                            </div>
+                            <div class="d-flex justify-content-between mt-1">
+                                <small class="text-muted execution-time">00:00</small>
+                                <small class="text-muted execution-status">准备中...</small>
+                            </div>
+                        </div>
+                        <div class="card bg-dark mb-3">
+                            <div class="card-header bg-dark text-light d-flex justify-content-between align-items-center">
+                                <span>执行日志</span>
+                                <button class="btn btn-sm btn-outline-light" id="clear-log-${taskId}">
+                                    <i class="bi bi-trash"></i> 清空
+                                </button>
+                            </div>
+                            <div class="card-body p-0">
+                                <pre class="execution-log bg-dark text-light p-3 mb-0" style="max-height: 300px; overflow-y: auto;"></pre>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                        <button type="button" class="btn btn-danger stop-task" data-task-id="${taskId}">
+                            <i class="bi bi-stop-fill"></i> 停止任务
+                        </button>
+                        <button type="button" class="btn btn-primary take-screenshot">
+                            <i class="bi bi-camera"></i> 截图
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modalElement);
+        
+        // 初始化模态框
+        const modal = new bootstrap.Modal(modalElement);
+        
+        // 绑定按钮事件
+        modalElement.querySelector('.stop-task').addEventListener('click', () => {
+            stopTask(taskId);
+        });
+        
+        modalElement.querySelector('.take-screenshot').addEventListener('click', () => {
+            takeScreenshot();
+        });
+        
+        modalElement.querySelector(`#clear-log-${taskId}`).addEventListener('click', () => {
+            modalElement.querySelector('.execution-log').innerHTML = '';
+        });
+        
+        // 显示模态框
+        modal.show();
+    } else {
+        // 更新已有模态框
+        const progressBar = modalElement.querySelector('.progress-bar');
+        progressBar.style.width = '0%';
+        
+        // 清空日志
+        modalElement.querySelector('.execution-log').innerHTML = '';
+        
+        // 重置状态
+        modalElement.querySelector('.execution-status').textContent = '准备中...';
+        modalElement.querySelector('.execution-time').textContent = '00:00';
+        
+        // 显示模态框
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    }
+    
+    // 开始计时器
+    const startTime = new Date();
+    const timerInterval = setInterval(() => {
+        const elapsedTime = new Date() - startTime;
+        const minutes = Math.floor(elapsedTime / 60000);
+        const seconds = Math.floor((elapsedTime % 60000) / 1000);
+        
+        const timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        
+        if (modalElement.querySelector('.execution-time')) {
+            modalElement.querySelector('.execution-time').textContent = timeString;
+        }
+    }, 1000);
+    
+    // 更新日志函数
+    const updateLog = (message, type = 'info') => {
+        // 添加到任务日志
+        taskExecutionLogs[taskId].logs.push(`[${new Date().toLocaleTimeString()}] ${message}`);
+        
+        // 更新模态框日志
+        const logElement = modalElement.querySelector('.execution-log');
+        if (logElement) {
+            const messageClass = type === 'error' ? 'text-danger' : 
+                                type === 'success' ? 'text-success' : 
+                                type === 'warning' ? 'text-warning' : '';
+            
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = `<span class="log-time text-muted">[${new Date().toLocaleTimeString()}]</span> <span class="${messageClass}">${message}</span>`;
+            logElement.appendChild(logEntry);
+            
+            // 滚动到底部
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        // 更新状态文本
+        const statusElement = modalElement.querySelector('.execution-status');
+        if (statusElement) {
+            statusElement.textContent = message;
+        }
+    };
+    
+    // 更新进度函数
+    const updateProgress = (percent) => {
+        const progressBar = modalElement.querySelector('.progress-bar');
+        if (progressBar) {
+            progressBar.style.width = `${percent}%`;
+            
+            // 根据进度更新颜色
+            if (percent < 30) {
+                progressBar.className = 'progress-bar progress-bar-striped progress-bar-animated bg-info';
+            } else if (percent < 70) {
+                progressBar.className = 'progress-bar progress-bar-striped progress-bar-animated bg-primary';
+            } else {
+                progressBar.className = 'progress-bar progress-bar-striped progress-bar-animated bg-success';
+            }
+        }
+    };
+    
+    // 初始日志
+    updateLog(`开始执行任务: ${task.name}`);
+    updateProgress(5);
+    
+    // 发送执行请求
+    fetch(`/tasks/${taskId}/execute`, {
+        method: 'POST'
+    })
+        .then(response => {
+            updateLog('任务已提交到服务器', 'info');
+            updateProgress(20);
+            return response.json();
+        })
+        .then(data => {
+            if (data.status === 'success') {
+                updateLog(`任务执行成功: ${data.message || '完成'}`, 'success');
+                updateProgress(100);
+                
+                // 更新任务状态
+                taskExecutionLogs[taskId].status = 'completed';
+                taskExecutionLogs[taskId].endTime = new Date();
+                
+                // 执行成功后自动截图
+                setTimeout(() => {
+                    updateLog('自动获取执行后的屏幕截图...', 'info');
+                    takeScreenshot();
+                }, 500);
+                
+                // 成功提示
+                showToast('成功', `任务"${task.name}"执行成功`, 'success');
+            } else {
+                updateLog(`任务执行失败: ${data.message || '未知错误'}`, 'error');
+                updateProgress(100);
+                
+                // 更新任务状态
+                taskExecutionLogs[taskId].status = 'failed';
+                taskExecutionLogs[taskId].endTime = new Date();
+                taskExecutionLogs[taskId].error = data.message;
+                
+                // 错误提示
+                showToast('错误', `任务"${task.name}"执行失败: ${data.message}`, 'danger');
+            }
+            
+            // 从运行列表中移除
+            runningTasks = runningTasks.filter(id => id !== taskId);
+            updateTaskRunningStatus(taskId, false);
+            
+            // 清除计时器
+            clearInterval(timerInterval);
+        })
+        .catch(error => {
+            console.error('执行任务时出错:', error);
+            
+            updateLog(`执行出错: ${error.message || '网络错误'}`, 'error');
+            updateProgress(100);
+            
+            // 更新任务状态
+            taskExecutionLogs[taskId].status = 'error';
+            taskExecutionLogs[taskId].endTime = new Date();
+            taskExecutionLogs[taskId].error = error.message;
+            
+            // 错误提示
+            showToast('错误', '无法连接到服务器', 'danger');
+            
+            // 从运行列表中移除
+            runningTasks = runningTasks.filter(id => id !== taskId);
+            updateTaskRunningStatus(taskId, false);
+            
+            // 清除计时器
+            clearInterval(timerInterval);
+        });
+}
+
+// 停止任务执行
+function stopTask(taskId) {
+    // 发送停止请求
+    fetch(`/tasks/${taskId}/stop`, {
+        method: 'POST'
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                showToast('成功', `已停止任务"${tasks.find(t => t.id === taskId)?.name || taskId}"`, 'warning');
+                
+                // 从运行列表中移除
+                runningTasks = runningTasks.filter(id => id !== taskId);
+                updateTaskRunningStatus(taskId, false);
+                
+                // 更新任务状态
+                if (taskExecutionLogs[taskId]) {
+                    taskExecutionLogs[taskId].status = 'stopped';
+                    taskExecutionLogs[taskId].endTime = new Date();
+                }
+                
+                // 更新模态框
+                const modalElement = document.getElementById(`task-execution-modal-${taskId}`);
+                if (modalElement) {
+                    const logElement = modalElement.querySelector('.execution-log');
+                    if (logElement) {
+                        const logEntry = document.createElement('div');
+                        logEntry.innerHTML = `<span class="log-time text-muted">[${new Date().toLocaleTimeString()}]</span> <span class="text-warning">任务已手动停止</span>`;
+                        logElement.appendChild(logEntry);
+                    }
+                    
+                    // 更新进度条
+                    const progressBar = modalElement.querySelector('.progress-bar');
+                    if (progressBar) {
+                        progressBar.className = 'progress-bar bg-warning';
+                        progressBar.style.width = '100%';
+                    }
+                    
+                    // 更新状态文本
+                    const statusElement = modalElement.querySelector('.execution-status');
+                    if (statusElement) {
+                        statusElement.textContent = '任务已停止';
+                    }
+                }
+            } else {
+                showToast('错误', data.message || '停止任务失败', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('停止任务时出错:', error);
+            showToast('错误', '无法连接到服务器', 'danger');
+        });
+}
+
+// 更新任务运行状态显示
+function updateTaskRunningStatus(taskId, isRunning) {
+    const taskItems = document.querySelectorAll(`.task-item[data-task-id="${taskId}"]`);
+    
+    taskItems.forEach(item => {
+        // 更新任务卡片样式
+        if (isRunning) {
+            item.classList.add('running');
+            
+            // 添加运行中徽章
+            const headerDiv = item.querySelector('.card-header');
+            if (headerDiv) {
+                let badge = headerDiv.querySelector('.running-badge');
+                if (!badge) {
+                    badge = document.createElement('span');
+                    badge.className = 'badge bg-success ms-2 running-badge';
+                    badge.innerHTML = '<i class="bi bi-lightning-fill"></i> 运行中';
+                    headerDiv.querySelector('h6').appendChild(badge);
+                }
+            }
+        } else {
+            item.classList.remove('running');
+            
+            // 移除运行中徽章
+            const badge = item.querySelector('.running-badge');
+            if (badge) {
+                badge.remove();
+            }
+        }
+    });
+}
+
+// 保存任务到文件
+function saveTasks() {
+    const filePath = prompt('请输入保存路径:', 'tasks.json');
+    
+    if (!filePath) {
+        return;
+    }
+    
+    fetch('/tasks/save', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            file_path: filePath
+        })
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                showToast('成功', data.message || '任务保存成功');
+            } else {
+                showToast('错误', data.message || '保存任务失败');
+            }
+        })
+        .catch(error => {
+            console.error('保存任务时出错:', error);
+            showToast('错误', '无法连接到服务器');
+        });
+}
+
+// 从文件加载任务
+function loadTasks() {
+    const filePath = prompt('请输入加载路径:', 'tasks.json');
+    
+    if (!filePath) {
+        return;
+    }
+    
+    fetch('/tasks/load', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            file_path: filePath
+        })
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                // 刷新任务列表
+                renderTaskList();
+                
+                showToast('成功', data.message || '任务加载成功');
+            } else {
+                showToast('错误', data.message || '加载任务失败');
+            }
+        })
+        .catch(error => {
+            console.error('加载任务时出错:', error);
+            showToast('错误', '无法连接到服务器');
+        });
+}
+
+// 显示加载状态
+function showLoading(message = '加载中...') {
+    // 检查是否已存在加载层
+    let loadingOverlay = document.querySelector('.loading-overlay');
+    
+    if (!loadingOverlay) {
+        loadingOverlay = document.createElement('div');
+        loadingOverlay.className = 'loading-overlay';
+        loadingOverlay.innerHTML = `
+            <div class="text-center text-white">
+                <div class="spinner-border text-light" role="status"></div>
+                <p class="mt-2">${message}</p>
+            </div>
+        `;
+        
+        document.body.appendChild(loadingOverlay);
+    } else {
+        const messageElement = loadingOverlay.querySelector('p');
+        if (messageElement) {
+            messageElement.textContent = message;
+        }
+        
+        loadingOverlay.style.display = 'flex';
+    }
+}
+
+// 隐藏加载状态
+function hideLoading() {
+    const loadingOverlay = document.querySelector('.loading-overlay');
+    
+    if (loadingOverlay) {
+        loadingOverlay.style.display = 'none';
+    }
+}
+
+// 显示提示消息
+// 显示Toast提示
+function showToast(title, message, type = 'primary') {
+    // 创建提示容器
+    let toastContainer = document.getElementById('toast-container');
+    
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'toast-container';
+        toastContainer.className = 'position-fixed bottom-0 end-0 p-3';
+        toastContainer.style.zIndex = '5000';
+        document.body.appendChild(toastContainer);
+    }
+    
+    // 创建提示元素
+    const toastElement = document.createElement('div');
+    const id = `toast-${Date.now()}`;
+    
+    // 设置不同类型的颜色
+    let bgColor, iconClass;
+    switch(type) {
+        case 'success':
+            bgColor = 'bg-success';
+            iconClass = 'bi-check-circle-fill';
+            break;
+        case 'danger':
+        case 'error':
+            bgColor = 'bg-danger';
+            iconClass = 'bi-exclamation-triangle-fill';
+            break;
+        case 'warning':
+            bgColor = 'bg-warning';
+            iconClass = 'bi-exclamation-circle-fill';
+            break;
+        case 'info':
+            bgColor = 'bg-info';
+            iconClass = 'bi-info-circle-fill';
+            break;
+        default:
+            bgColor = 'bg-primary';
+            iconClass = 'bi-bell-fill';
+    }
+    
+    toastElement.innerHTML = `
+        <div id="${id}" class="toast border-0 ${bgColor} text-white" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header ${bgColor} text-white border-0">
+                <i class="bi ${iconClass} me-2"></i>
+                <strong class="me-auto">${title}</strong>
+                <small class="text-white-50">${new Date().toLocaleTimeString()}</small>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body">
+                ${message}
+            </div>
+        </div>
+    `;
+    
+    // 添加到容器
+    toastContainer.appendChild(toastElement);
+    
+    // 显示提示
+    const toast = new bootstrap.Toast(document.getElementById(id), {
+        autohide: true,
+        delay: 5000
+    });
+    
+    toast.show();
+    
+    // 提示消失后移除元素
+    document.getElementById(id).addEventListener('hidden.bs.toast', () => {
+        toastContainer.removeChild(toastElement);
+    });
+    
+    // 返回Toast实例，以便调用者可以手动控制
+    return toast;
+}
+
+// 显示加载状态
+function showLoading(message = '加载中...') {
+    // 创建加载遮罩
+    let loadingOverlay = document.getElementById('loading-overlay');
+    
+    if (!loadingOverlay) {
+        loadingOverlay = document.createElement('div');
+        loadingOverlay.id = 'loading-overlay';
+        loadingOverlay.className = 'position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center';
+        loadingOverlay.style.zIndex = '9999';
+        loadingOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+        
+        loadingOverlay.innerHTML = `
+            <div class="card shadow border-0 p-4">
+                <div class="d-flex align-items-center">
+                    <div class="spinner-border text-primary me-3" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                    <div class="loading-message">${message}</div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(loadingOverlay);
+    } else {
+        // 更新消息
+        loadingOverlay.querySelector('.loading-message').textContent = message;
+        loadingOverlay.style.display = 'flex';
+    }
+}
+
+// 隐藏加载状态
+function hideLoading() {
+    const loadingOverlay = document.getElementById('loading-overlay');
+    if (loadingOverlay) {
+        loadingOverlay.style.display = 'none';
+    }
+}
+
+// 页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM内容加载完成，开始初始化应用...');
+    
+    // 添加自定义样式
+    addCustomStyles();
+    
+    // 延迟一小段时间确保所有元素都已渲染
+    setTimeout(() => {
+        // 初始化应用
+        init();
+    }, 100);
+});
+
+// 添加自定义样式
+function addCustomStyles() {
+    const styleElement = document.createElement('style');
+    styleElement.textContent = `
+        /* 任务卡片样式 */
+        .task-item {
+            transition: all 0.3s ease;
+        }
+        
+        .task-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important;
+        }
+        
+        .task-item.running .card {
+            box-shadow: 0 0 15px rgba(40, 167, 69, 0.5) !important;
+            border: 1px solid #28a745 !important;
+        }
+        
+        /* 点击动画效果 */
+        .tap-indicator {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            margin-left: -15px;
+            margin-top: -15px;
+            border-radius: 50%;
+            background-color: rgba(255, 255, 255, 0.5);
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+            animation: tap-animation 0.6s ease-out;
+            pointer-events: none;
+        }
+        
+        @keyframes tap-animation {
+            0% {
+                transform: scale(0);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(1.5);
+                opacity: 0;
+            }
+        }
+        
+        /* 波纹效果 */
+        .tap-ripple {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            margin-left: -10px;
+            margin-top: -10px;
+            border-radius: 50%;
+            border: 2px solid #007bff;
+            animation: ripple-animation 1s ease-out;
+            pointer-events: none;
+        }
+        
+        @keyframes ripple-animation {
+            0% {
+                transform: scale(0);
+                opacity: 1;
+                border-width: 2px;
+            }
+            100% {
+                transform: scale(3);
+                opacity: 0;
+                border-width: 1px;
+            }
+        }
+        
+        /* 坐标选择器样式 */
+        .coordinate-picker-container {
+            position: relative;
+        }
+        
+        .magnifier {
+            position: absolute;
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            pointer-events: none;
+            z-index: 1000;
+        }
+        
+        .magnifier-content {
+            width: 100%;
+            height: 100%;
+            background-repeat: no-repeat;
+        }
+        
+        .magnifier-crosshair {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="150" height="150"><line x1="75" y1="0" x2="75" y2="150" stroke="red" stroke-width="1"/><line x1="0" y1="75" x2="150" y2="75" stroke="red" stroke-width="1"/><circle cx="75" cy="75" r="2" fill="red"/></svg>');
+            pointer-events: none;
+        }
+        
+        .magnifier-info {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            font-size: 12px;
+            padding: 2px 0;
+        }
+        
+        .grid-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: linear-gradient(rgba(255,255,255,.1) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px);
+            background-size: 20px 20px;
+            pointer-events: none;
+        }
+        
+        /* 任务执行日志样式 */
+        .execution-log {
+            font-family: 'Consolas', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        
+        .execution-log .log-time {
+            opacity: 0.7;
+            margin-right: 8px;
+        }
+        
+        /* 坐标信息显示 */
+        .tap-coordinates {
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .tap-coordinates-visible {
+            opacity: 1;
+        }
+        
+        /* 成功点击指示器 */
+        .tap-success {
+            position: absolute;
+            color: #28a745;
+            font-size: 24px;
+            margin-left: -12px;
+            margin-top: -12px;
+            animation: success-animation 1s ease-out;
+            pointer-events: none;
+        }
+        
+        @keyframes success-animation {
+            0% {
+                transform: scale(0);
+                opacity: 0;
+            }
+            50% {
+                transform: scale(1.2);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(1);
+                opacity: 0;
+            }
+        }
+    `;
+    
+    document.head.appendChild(styleElement);
+}

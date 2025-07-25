@@ -1,0 +1,534 @@
+#!/usr/bin/env python3
+"""
+Soul Chat Robot - Web界面模块
+基于Flask的Web界面，用于管理和执行自动化任务
+"""
+
+import os
+import json
+import logging
+import base64
+import uuid
+from pathlib import Path
+from typing import Dict, List, Any, Optional, Union
+from datetime import datetime
+
+from flask import Flask, render_template, request, jsonify, send_from_directory, Response, url_for
+
+from module.controller.adb_controller import ADBController
+from module.controller.task_manager import TaskManager, Task, TaskAction, Condition
+        """启动Web应用"""
+        logger.info(f"启动Web应用，监听地址: {self.host}:{self.port}")
+        logger.info(f"静态文件目录: {self.app.static_folder}")
+        logger.info(f"模板文件目录: {self.app.template_folder}")
+        
+        # 添加调试信息中间件
+        if self.debug:
+            @self.app.before_request
+            def log_request_info():
+                logger.debug(f"请求: {request.method} {request.path}")
+                
+            @self.app.after_request
+            def log_response_info(response):
+                logger.debug(f"响应: {response.status}")
+                return response
+        
+        self.app.run(host=self.host, port=self.port, debug=self.debug)Manager, Task, TaskAction, Condition
+
+
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger('web_app')
+
+
+class WebApp:
+    """Web应用类"""
+    
+    def __init__(self, host: str = "127.0.0.1", port: int = 5000, debug: bool = False):
+        """
+        初始化Web应用
+        
+        :param host: 主机地址
+        :param port: 端口号
+        :param debug: 是否开启调试模式
+        """
+        self.host = host
+        self.port = port
+        self.debug = debug
+        
+        # 创建Flask应用
+        self.app = Flask(
+            __name__, 
+            static_folder=os.path.join(os.path.dirname(__file__), 'static'),
+            template_folder=os.path.join(os.path.dirname(__file__), 'templates')
+        )
+        
+        # 创建ADB控制器
+        self.controller = ADBController()
+        
+        # 创建任务管理器
+        self.task_manager = TaskManager(self.controller)
+        
+        # 初始化路由
+        self._init_routes()
+    
+    def _init_routes(self):
+        """初始化路由"""
+        
+        @self.app.route('/')
+        def index():
+            """首页"""
+            return render_template('index.html')
+        
+        @self.app.route('/devices', methods=['GET'])
+        def get_devices():
+            """获取设备列表"""
+            devices = self.controller.get_devices()
+            return jsonify({
+                'status': 'success',
+                'devices': devices,
+                'connected_device': self.controller.device_id
+            })
+        
+        @self.app.route('/connect', methods=['POST'])
+        def connect_device():
+            """连接设备"""
+            data = request.json
+            device_id = data.get('device_id')
+            
+            if not device_id:
+                return jsonify({
+                    'status': 'error',
+                    'message': '未提供设备ID'
+                })
+            
+            success = self.controller.connect_device(device_id)
+            
+            if success:
+                return jsonify({
+                    'status': 'success',
+                    'message': f'成功连接到设备 {device_id}',
+                    'screen_size': self.controller.screen_size
+                })
+            else:
+                return jsonify({
+                    'status': 'error',
+                    'message': f'连接设备 {device_id} 失败'
+                })
+        
+        @self.app.route('/screenshot', methods=['GET'])
+        def take_screenshot():
+            """获取屏幕截图"""
+            if not self.controller.device_id:
+                return jsonify({
+                    'status': 'error',
+                    'message': '未连接设备'
+                })
+            
+            screenshot_data = self.controller.take_screenshot()
+            
+            if screenshot_data:
+                # 将截图数据编码为Base64字符串
+                encoded_image = base64.b64encode(screenshot_data).decode('utf-8')
+                
+                return jsonify({
+                    'status': 'success',
+                    'image': encoded_image,
+                    'timestamp': datetime.now().isoformat()
+                })
+            else:
+                return jsonify({
+                    'status': 'error',
+                    'message': '获取截图失败'
+                })
+        
+        @self.app.route('/tap', methods=['POST'])
+        def tap_screen():
+            """点击屏幕"""
+            if not self.controller.device_id:
+                return jsonify({
+                    'status': 'error',
+                    'message': '未连接设备'
+                })
+            
+            data = request.json
+            x = data.get('x')
+            y = data.get('y')
+            
+            if x is None or y is None:
+                return jsonify({
+                    'status': 'error',
+                    'message': '未提供点击坐标'
+                })
+            
+            success = self.controller.tap(int(x), int(y))
+            
+            if success:
+                return jsonify({
+                    'status': 'success',
+                    'message': f'点击坐标 ({x}, {y}) 成功'
+                })
+            else:
+                return jsonify({
+                    'status': 'error',
+                    'message': f'点击坐标 ({x}, {y}) 失败'
+                })
+        
+        @self.app.route('/input', methods=['POST'])
+        def input_text():
+            """输入文本"""
+            if not self.controller.device_id:
+                return jsonify({
+                    'status': 'error',
+                    'message': '未连接设备'
+                })
+            
+            data = request.json
+            text = data.get('text')
+            
+            if not text:
+                return jsonify({
+                    'status': 'error',
+                    'message': '未提供输入文本'
+                })
+            
+            success = self.controller.input_text(text)
+            
+            if success:
+                return jsonify({
+                    'status': 'success',
+                    'message': f'输入文本成功: {text}'
+                })
+            else:
+                return jsonify({
+                    'status': 'error',
+                    'message': f'输入文本失败: {text}'
+                })
+        
+        @self.app.route('/key', methods=['POST'])
+        def press_key():
+            """按下按键"""
+            if not self.controller.device_id:
+                return jsonify({
+                    'status': 'error',
+                    'message': '未连接设备'
+                })
+            
+            data = request.json
+            key_code = data.get('key_code')
+            
+            if key_code is None:
+                return jsonify({
+                    'status': 'error',
+                    'message': '未提供按键代码'
+                })
+            
+            success = self.controller.press_key(int(key_code))
+            
+            if success:
+                return jsonify({
+                    'status': 'success',
+                    'message': f'按键 {key_code} 成功'
+                })
+            else:
+                return jsonify({
+                    'status': 'error',
+                    'message': f'按键 {key_code} 失败'
+                })
+        
+        @self.app.route('/tasks', methods=['GET'])
+        def get_tasks():
+            """获取所有任务"""
+            tasks = self.task_manager.get_all_tasks()
+            
+            # 将任务转换为字典
+            task_data = [task.to_dict() for task in tasks]
+            
+            return jsonify({
+                'status': 'success',
+                'tasks': task_data
+            })
+        
+        @self.app.route('/tasks', methods=['POST'])
+        def add_task():
+            """添加任务"""
+            data = request.json
+            
+            try:
+                task = Task.from_dict(data)
+                success = self.task_manager.add_task(task)
+                
+                if success:
+                    return jsonify({
+                        'status': 'success',
+                        'message': '添加任务成功',
+                        'task_id': task.id
+                    })
+                else:
+                    return jsonify({
+                        'status': 'error',
+                        'message': '添加任务失败'
+                    })
+            
+            except Exception as e:
+                logger.error(f"添加任务时出错: {str(e)}")
+                return jsonify({
+                    'status': 'error',
+                    'message': f'添加任务时出错: {str(e)}'
+                })
+        
+        @self.app.route('/tasks/<task_id>', methods=['DELETE'])
+        def remove_task(task_id):
+            """删除任务"""
+            success = self.task_manager.remove_task(task_id)
+            
+            if success:
+                return jsonify({
+                    'status': 'success',
+                    'message': f'删除任务 {task_id} 成功'
+                })
+            else:
+                return jsonify({
+                    'status': 'error',
+                    'message': f'删除任务 {task_id} 失败'
+                })
+        
+        @self.app.route('/tasks/<task_id>', methods=['PUT'])
+        def update_task(task_id):
+            """更新任务"""
+            data = request.json
+            
+            # 首先删除旧任务
+            self.task_manager.remove_task(task_id)
+            
+            try:
+                # 创建新任务并添加
+                task = Task.from_dict(data)
+                success = self.task_manager.add_task(task)
+                
+                if success:
+                    return jsonify({
+                        'status': 'success',
+                        'message': f'更新任务 {task_id} 成功',
+                        'task_id': task.id
+                    })
+                else:
+                    return jsonify({
+                        'status': 'error',
+                        'message': f'更新任务 {task_id} 失败'
+                    })
+            
+            except Exception as e:
+                logger.error(f"更新任务时出错: {str(e)}")
+                return jsonify({
+                    'status': 'error',
+                    'message': f'更新任务时出错: {str(e)}'
+                })
+        
+        @self.app.route('/tasks/<task_id>/execute', methods=['POST'])
+        def execute_task(task_id):
+            """执行任务"""
+            if not self.controller.device_id:
+                return jsonify({
+                    'status': 'error',
+                    'message': '未连接设备，无法执行任务'
+                })
+            
+            success = self.task_manager.execute_task(task_id)
+            
+            if success:
+                return jsonify({
+                    'status': 'success',
+                    'message': f'执行任务 {task_id} 成功'
+                })
+            else:
+                return jsonify({
+                    'status': 'error',
+                    'message': f'执行任务 {task_id} 失败'
+                })
+                
+        @self.app.route('/upload_template', methods=['POST'])
+        def upload_template():
+            """上传模板图片"""
+            try:
+                if 'template_image' not in request.files:
+                    return jsonify({
+                        'status': 'error',
+                        'message': '未找到图片文件'
+                    })
+                
+                file = request.files['template_image']
+                
+                if file.filename == '':
+                    return jsonify({
+                        'status': 'error',
+                        'message': '未选择文件'
+                    })
+                
+                # 读取图片数据
+                image_data = file.read()
+                
+                if not image_data:
+                    return jsonify({
+                        'status': 'error',
+                        'message': '图片数据为空'
+                    })
+                
+                # 生成唯一的文件名
+                filename = f"{uuid.uuid4()}_{file.filename}"
+                
+                # 创建模板图片目录
+                templates_dir = os.path.join(os.path.dirname(__file__), 'static', 'templates')
+                os.makedirs(templates_dir, exist_ok=True)
+                
+                # 保存图片文件
+                file_path = os.path.join(templates_dir, filename)
+                
+                try:
+                    with open(file_path, 'wb') as f:
+                        f.write(image_data)
+                    
+                    logger.info(f"模板图片已保存: {file_path}")
+                except Exception as e:
+                    logger.error(f"保存模板图片时出错: {str(e)}")
+                    return jsonify({
+                        'status': 'error',
+                        'message': f'保存图片文件失败: {str(e)}'
+                    })
+                
+                # 检查图片是否有效
+                try:
+                    import cv2
+                    import numpy as np
+                    
+                    # 检查图片是否可以被OpenCV读取
+                    img_array = np.frombuffer(image_data, np.uint8)
+                    img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+                    
+                    if img is None:
+                        logger.error("无法解码图片数据")
+                        return jsonify({
+                            'status': 'error',
+                            'message': '无法解码图片数据，请确保上传了有效的图片格式'
+                        })
+                    
+                    # 记录图片信息
+                    logger.info(f"图片尺寸: {img.shape}")
+                except Exception as e:
+                    logger.error(f"验证图片时出错: {str(e)}")
+                    return jsonify({
+                        'status': 'error',
+                        'message': f'图片格式无效: {str(e)}'
+                    })
+                
+                # 返回图片信息
+                return jsonify({
+                    'status': 'success',
+                    'message': '模板图片上传成功',
+                    'filename': filename,
+                    'template_name': file.filename,
+                    'template_url': url_for('static', filename=f'templates/{filename}'),
+                    'template_image': base64.b64encode(image_data).decode('utf-8')
+                })
+                
+            except Exception as e:
+                logger.error(f"上传模板图片时出错: {str(e)}")
+                return jsonify({
+                    'status': 'error',
+                    'message': f'上传模板图片时出错: {str(e)}'
+                })
+        
+        @self.app.route('/tasks/save', methods=['POST'])
+        def save_tasks():
+            """保存任务到文件"""
+            data = request.json
+            file_path = data.get('file_path')
+            
+            if not file_path:
+                return jsonify({
+                    'status': 'error',
+                    'message': '未提供文件路径'
+                })
+            
+            success = self.task_manager.save_tasks(file_path)
+            
+            if success:
+                return jsonify({
+                    'status': 'success',
+                    'message': f'任务保存到文件 {file_path} 成功'
+                })
+            else:
+                return jsonify({
+                    'status': 'error',
+                    'message': f'任务保存到文件 {file_path} 失败'
+                })
+        
+        @self.app.route('/tasks/load', methods=['POST'])
+        def load_tasks():
+            """从文件加载任务"""
+            data = request.json
+            file_path = data.get('file_path')
+            
+            if not file_path:
+                return jsonify({
+                    'status': 'error',
+                    'message': '未提供文件路径'
+                })
+            
+            success = self.task_manager.load_tasks(file_path)
+            
+            if success:
+                return jsonify({
+                    'status': 'success',
+                    'message': f'从文件 {file_path} 加载任务成功'
+                })
+            else:
+                return jsonify({
+                    'status': 'error',
+                    'message': f'从文件 {file_path} 加载任务失败'
+                })
+    
+    def run(self):
+        """启动Web应用"""
+        logger.info(f"启动Web应用, 访问地址: http://{self.host}:{self.port}")
+        logger.info(f"静态文件目录: {self.app.static_folder}")
+        logger.info(f"模板文件目录: {self.app.template_folder}")
+        self.app.run(host=self.host, port=self.port, debug=self.debug)
+
+
+# 创建必要的目录
+def create_required_directories():
+    """创建必要的目录"""
+    # 获取当前模块的目录
+    module_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # 创建templates目录
+    templates_dir = os.path.join(module_dir, 'templates')
+    os.makedirs(templates_dir, exist_ok=True)
+    
+    # 创建static目录
+    static_dir = os.path.join(module_dir, 'static')
+    os.makedirs(static_dir, exist_ok=True)
+    
+    # 创建static/css目录
+    css_dir = os.path.join(static_dir, 'css')
+    os.makedirs(css_dir, exist_ok=True)
+    
+    # 创建static/js目录
+    js_dir = os.path.join(static_dir, 'js')
+    os.makedirs(js_dir, exist_ok=True)
+    
+    # 创建static/img目录
+    img_dir = os.path.join(static_dir, 'img')
+    os.makedirs(img_dir, exist_ok=True)
+    
+    return {
+        'templates_dir': templates_dir,
+        'static_dir': static_dir,
+        'css_dir': css_dir,
+        'js_dir': js_dir,
+        'img_dir': img_dir
+    }

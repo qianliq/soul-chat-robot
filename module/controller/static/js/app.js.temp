@@ -1,0 +1,185 @@
+/**
+ * Soul Chat Robot - Web界面前端脚本
+ */
+
+// 初始化全局变量
+let currentScreenshot = null;  // 当前截图数据
+let currentScreenSize = null;  // 当前屏幕尺寸
+let tasks = [];  // 所有任务
+let editingTask = null;  // 当前编辑的任务
+let editingCondition = null;  // 当前编辑的条件
+let editingAction = null;  // 当前编辑的动作
+let pickingForField = null;  // 当前用于选择坐标的字段
+let pickedCoordinates = null;  // 选中的坐标
+let currentTemplateImage = null;  // 当前上传的模板图片
+
+// DOM元素
+const elements = {
+    // 设备控制
+    deviceSelect: document.getElementById('device-select'),
+    refreshDevices: document.getElementById('refresh-devices'),
+    connectDevice: document.getElementById('connect-device'),
+    connectionStatus: document.getElementById('connection-status'),
+    deviceInfo: document.getElementById('device-info'),
+    // 截图
+    takeScreenshot: document.getElementById('take-screenshot'),
+    screenshotImg: document.getElementById('screenshot-img'),
+    noScreenshot: document.getElementById('no-screenshot'),
+    screenResolution: document.getElementById('screen-resolution'),
+    screenshotTime: document.getElementById('screenshot-time'),
+    screenOverlay: document.getElementById('screen-overlay'),
+    tapIndicator: document.getElementById('tap-indicator'),
+    tapCoordinates: document.getElementById('tap-coordinates'),
+    enableTap: document.getElementById('enable-tap'),
+    // 按键
+    btnBack: document.getElementById('btn-back'),
+    btnHome: document.getElementById('btn-home'),
+    // 任务管理
+    taskList: document.getElementById('task-list'),
+    btnNewTask: document.getElementById('btn-new-task'),
+    btnCreateFirstTask: document.getElementById('btn-create-first-task'),
+    btnSaveTasks: document.getElementById('btn-save-tasks'),
+    btnLoadTasks: document.getElementById('btn-load-tasks'),
+    // 模态框
+    taskModal: new bootstrap.Modal(document.getElementById('task-modal')),
+    taskForm: document.getElementById('task-form'),
+    taskId: document.getElementById('task-id'),
+    taskName: document.getElementById('task-name'),
+    taskDescription: document.getElementById('task-description'),
+    taskType: document.getElementById('task-type'),
+    loopCountGroup: document.getElementById('loop-count-group'),
+    loopCount: document.getElementById('loop-count'),
+    conditionsGroup: document.getElementById('conditions-group'),
+    conditionsList: document.getElementById('conditions-list'),
+    noConditions: document.getElementById('no-conditions'),
+    addCondition: document.getElementById('add-condition'),
+    actionsList: document.getElementById('actions-list'),
+    noActions: document.getElementById('no-actions'),
+    childrenGroup: document.getElementById('children-group'),
+    childrenList: document.getElementById('children-list'),
+    noChildren: document.getElementById('no-children'),
+    addChildTask: document.getElementById('add-child-task'),
+    saveTask: document.getElementById('save-task'),
+    // 条件模态框
+    conditionModal: new bootstrap.Modal(document.getElementById('condition-modal')),
+    conditionForm: document.getElementById('condition-form'),
+    conditionId: document.getElementById('condition-id'),
+    conditionType: document.getElementById('condition-type'),
+    conditionContent: document.getElementById('condition-content'),
+    conditionAnalyzer: document.getElementById('condition-analyzer'),
+    conditionConfidence: document.getElementById('condition-confidence'),
+    confidenceValue: document.getElementById('confidence-value'),
+    saveCondition: document.getElementById('save-condition'),
+    // 模板图片相关
+    textConditionGroup: document.getElementById('text-condition-group'),
+    templateConditionGroup: document.getElementById('template-condition-group'),
+    templateImageFile: document.getElementById('template-image-file'),
+    uploadTemplateBtn: document.getElementById('upload-template-btn'),
+    templatePreviewContainer: document.getElementById('template-preview-container'),
+    templatePreview: document.getElementById('template-preview'),
+    templateName: document.getElementById('template-name'),
+    templateStatus: document.getElementById('template-status'),
+    templateRegionX: document.getElementById('template-region-x'),
+    templateRegionY: document.getElementById('template-region-y'),
+    templateRegionWidth: document.getElementById('template-region-width'),
+    templateRegionHeight: document.getElementById('template-region-height'),
+    templateAnalyzerOption: document.querySelector('.template-analyzer-option'),
+    // 动作模态框
+    actionModal: new bootstrap.Modal(document.getElementById('action-modal')),
+    actionForm: document.getElementById('action-form'),
+    actionId: document.getElementById('action-id'),
+    actionType: document.getElementById('action-type'),
+    actionName: document.getElementById('action-name'),
+    actionFields: document.querySelectorAll('.action-fields'),
+    tapX: document.getElementById('tap-x'),
+    tapY: document.getElementById('tap-y'),
+    pickCoordinates: document.getElementById('pick-coordinates'),
+    inputText: document.getElementById('input-text'),
+    waitSeconds: document.getElementById('wait-seconds'),
+    keyCode: document.getElementById('key-code'),
+    swipeX1: document.getElementById('swipe-x1'),
+    swipeY1: document.getElementById('swipe-y1'),
+    swipeX2: document.getElementById('swipe-x2'),
+    swipeY2: document.getElementById('swipe-y2'),
+    swipeDuration: document.getElementById('swipe-duration'),
+    saveAction: document.getElementById('save-action'),
+    // 子任务选择模态框
+    childTaskModal: new bootstrap.Modal(document.getElementById('child-task-modal')),
+    childTaskList: document.getElementById('child-task-list'),
+    noAvailableTasks: document.getElementById('no-available-tasks'),
+    // 坐标选择模态框
+    coordinatePickerModal: new bootstrap.Modal(document.getElementById('coordinate-picker-modal')),
+    pickerScreenshot: document.getElementById('picker-screenshot'),
+    pickerOverlay: document.getElementById('picker-overlay'),
+    pickerIndicator: document.getElementById('picker-indicator'),
+    pickerCoordinates: document.getElementById('picker-coordinates'),
+    confirmCoordinates: document.getElementById('confirm-coordinates')
+};
+
+// 初始化函数
+function init() {
+    // 绑定事件处理程序
+    bindEvents();
+    
+    // 加载设备列表
+    loadDevices();
+    
+    // 初始化任务列表
+    renderTaskList();
+    
+    console.log('Web应用初始化完成');
+}
+
+// 绑定事件处理程序
+function bindEvents() {
+    // 设备控制
+    elements.refreshDevices.addEventListener('click', loadDevices);
+    elements.connectDevice.addEventListener('click', connectDevice);
+    elements.takeScreenshot.addEventListener('click', takeScreenshot);
+    elements.enableTap.addEventListener('change', toggleTapFeature);
+    elements.btnBack.addEventListener('click', pressBackButton);
+    elements.btnHome.addEventListener('click', pressHomeButton);
+    
+    // 屏幕点击
+    elements.screenOverlay.addEventListener('click', handleScreenTap);
+    
+    // 任务管理
+    elements.btnNewTask.addEventListener('click', createNewTask);
+    elements.btnCreateFirstTask.addEventListener('click', createNewTask);
+    elements.btnSaveTasks.addEventListener('click', saveTasks);
+    elements.btnLoadTasks.addEventListener('click', loadTasks);
+    
+    // 任务表单
+    elements.taskType.addEventListener('change', handleTaskTypeChange);
+    elements.addCondition.addEventListener('click', openConditionModal);
+    elements.addChildTask.addEventListener('click', openChildTaskModal);
+    elements.saveTask.addEventListener('click', saveTaskForm);
+    
+    // 动作相关
+    document.querySelectorAll('.add-action').forEach(button => {
+        button.addEventListener('click', e => {
+            e.preventDefault();
+            const actionType = e.target.closest('.add-action').dataset.type;
+            openActionModal(actionType);
+        });
+    });
+    
+    // 条件模态框
+    elements.conditionType.addEventListener('change', handleConditionTypeChange);
+    elements.conditionConfidence.addEventListener('input', e => {
+        elements.confidenceValue.textContent = e.target.value;
+    });
+    elements.saveCondition.addEventListener('click', saveConditionForm);
+    
+    // 模板图片上传
+    elements.uploadTemplateBtn.addEventListener('click', uploadTemplateImage);
+    
+    // 动作模态框
+    elements.pickCoordinates.addEventListener('click', openCoordinatePicker);
+    elements.saveAction.addEventListener('click', saveActionForm);
+    
+    // 坐标选择器
+    elements.pickerOverlay.addEventListener('mousemove', updatePickerPosition);
+    elements.pickerOverlay.addEventListener('click', lockPickerPosition);
+    elements.confirmCoordinates.addEventListener('click', confirmCoordinates);
+}
