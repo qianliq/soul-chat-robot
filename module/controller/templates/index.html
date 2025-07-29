@@ -228,6 +228,9 @@
                                             <li><a class="dropdown-item add-action" data-type="wait" href="#">等待</a></li>
                                             <li><a class="dropdown-item add-action" data-type="key" href="#">按键</a></li>
                                             <li><a class="dropdown-item add-action" data-type="swipe" href="#">滑动屏幕</a></li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li><a class="dropdown-item add-action" data-type="execute_task" href="#">执行任务</a></li>
+                                            <li><a class="dropdown-item add-action" data-type="sleep" href="#">睡眠等待</a></li>
                                         </ul>
                                     </div>
                                 </div>
@@ -472,6 +475,27 @@
                                 </div>
                                 <label for="swipe-duration" class="form-label">持续时间（毫秒）</label>
                                 <input type="number" class="form-control" id="swipe-duration" min="100" step="50" value="300" required>
+                            </div>
+                        </div>
+                        
+                        <!-- 执行任务动作 -->
+                        <div id="execute_task-action-fields" class="action-fields d-none">
+                            <div class="mb-3">
+                                <label for="execute-task-id" class="form-label">选择任务</label>
+                                <select class="form-select" id="execute-task-id" required>
+                                    <option value="">-- 选择要执行的任务 --</option>
+                                    <!-- 任务选项将通过JavaScript动态填充 -->
+                                </select>
+                                <input type="hidden" id="execute-task-name">
+                            </div>
+                        </div>
+                        
+                        <!-- 睡眠等待动作 -->
+                        <div id="sleep-action-fields" class="action-fields d-none">
+                            <div class="mb-3">
+                                <label for="sleep-seconds" class="form-label">睡眠时间（秒）</label>
+                                <input type="number" class="form-control" id="sleep-seconds" min="0.1" step="0.1" value="1" required>
+                                <div class="form-text">等待指定时间后继续执行下一个动作</div>
                             </div>
                         </div>
                     </form>

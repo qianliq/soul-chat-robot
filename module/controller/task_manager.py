@@ -57,6 +57,10 @@ class TaskAction:
             return KeyAction(**data)
         elif action_type == 'swipe':
             return SwipeAction(**data)
+        elif action_type == 'execute_task':
+            return ExecuteTaskAction(**data)
+        elif action_type == 'sleep':
+            return SleepAction(**data)
         else:
             return TaskAction(**data)
 
@@ -131,6 +135,61 @@ class SwipeAction(TaskAction):
         """执行滑动操作"""
         logger.info(f"执行滑动: 从 ({self.x1}, {self.y1}) 到 ({self.x2}, {self.y2}), 持续 {self.duration}ms")
         return controller.swipe(self.x1, self.y1, self.x2, self.y2, self.duration)
+
+
+@dataclass
+class ExecuteTaskAction(TaskAction):
+    """执行任务动作"""
+    type: str = "execute_task"
+    name: str = "执行任务"
+    task_id: str = ""  # 要执行的任务ID
+    task_name: str = ""  # 任务名称（仅用于显示）
+    
+    def execute(self, controller: ADBController, context: Dict[str, Any]) -> bool:
+        """执行指定任务"""
+        if not self.task_id:
+            logger.error("未指定要执行的任务ID")
+            return False
+            
+        # 从上下文中获取任务管理器
+        task_manager = context.get('task_manager')
+        if not task_manager:
+            logger.error("任务管理器不可用")
+            return False
+            
+        # 防止循环调用 - 检查调用栈
+        call_stack = context.get('call_stack', [])
+        if self.task_id in call_stack:
+            logger.error(f"检测到循环调用任务: {self.task_id}")
+            return False
+            
+        logger.info(f"执行子任务: {self.task_name} (ID: {self.task_id})")
+        
+        # 创建新的上下文，添加调用栈
+        new_context = context.copy()
+        new_context['call_stack'] = call_stack + [self.task_id]
+        
+        # 执行任务
+        task = task_manager.get_task(self.task_id)
+        if not task:
+            logger.error(f"任务不存在: {self.task_id}")
+            return False
+            
+        return task.execute(controller, new_context)
+
+
+@dataclass
+class SleepAction(TaskAction):
+    """睡眠动作（等待动作的别名，为了更清晰的命名）"""
+    type: str = "sleep"
+    name: str = "睡眠等待"
+    seconds: float = 1.0
+    
+    def execute(self, controller: ADBController, context: Dict[str, Any]) -> bool:
+        """执行睡眠等待"""
+        logger.info(f"睡眠等待 {self.seconds} 秒")
+        time.sleep(self.seconds)
+        return True
 
 
 @dataclass
@@ -535,7 +594,9 @@ class TaskManager:
         # 创建新的上下文
         context = {
             "start_time": time.time(),
-            "task_id": task_id
+            "task_id": task_id,
+            "task_manager": self,  # 添加任务管理器到上下文
+            "call_stack": []  # 初始化调用栈，防止循环调用
         }
         
         return task.execute(self.controller, context)

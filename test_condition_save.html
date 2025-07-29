@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>条件保存测试</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-4">
+        <h1>条件保存测试</h1>
+        
+        <!-- 模拟任务模态框 -->
+        <button class="btn btn-primary" onclick="testCreateTask()">创建新任务</button>
+        <button class="btn btn-secondary" onclick="testChangeTaskType()">切换到条件任务</button>
+        <button class="btn btn-success" onclick="testSaveCondition()">保存条件</button>
+        
+        <div class="mt-3">
+            <h3>调试信息</h3>
+            <div id="debug-info" class="alert alert-info">
+                <p><strong>editingTask:</strong> <span id="editing-task-info">未设置</span></p>
+            </div>
+        </div>
+        
+        <!-- 模拟必要的DOM元素 -->
+        <div class="d-none">
+            <select id="task-type">
+                <option value="simple">简单任务</option>
+                <option value="conditional">条件任务</option>
+                <option value="loop">循环任务</option>
+            </select>
+            
+            <input id="condition-type" value="text">
+            <input id="condition-content" value="测试内容">
+            <select id="condition-analyzer">
+                <option value="ocr">OCR</option>
+            </select>
+            <input id="condition-confidence" value="0.7">
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 模拟必要的全局变量和函数
+        let editingTask = null;
+        let editingCondition = null;
+
+        function showError(message) {
+            alert('✗ ' + message);
+        }
+
+        function showSuccess(message) {
+            alert('✓ ' + message);
+        }
+
+        function updateDebugInfo() {
+            document.getElementById('editing-task-info').textContent = 
+                editingTask ? JSON.stringify(editingTask, null, 2) : '未设置';
+        }
+
+        // 模拟核心函数
+        function testCreateTask() {
+            console.log('测试创建新任务');
+            
+            // 模拟 openTaskModal(null)
+            editingTask = {
+                id: null,
+                name: '',
+                description: '',
+                task_type: 'simple',
+                loop_count: 1,
+                enabled: true,
+                conditions: [],
+                actions: [],
+                children: []
+            };
+            
+            console.log('editingTask 设置为:', editingTask);
+            updateDebugInfo();
+        }
+
+        function testChangeTaskType() {
+            if (!editingTask) {
+                alert('请先创建任务');
+                return;
+            }
+            
+            // 模拟切换任务类型到条件任务
+            document.getElementById('task-type').value = 'conditional';
+            editingTask.task_type = 'conditional';
+            
+            console.log('任务类型已切换到:', editingTask.task_type);
+            updateDebugInfo();
+        }
+
+        function testSaveCondition() {
+            console.log('保存条件 - editingTask:', editingTask);
+            
+            const conditionData = {
+                type: document.getElementById('condition-type').value,
+                content: document.getElementById('condition-content').value,
+                analyzer: document.getElementById('condition-analyzer').value,
+                confidence: parseFloat(document.getElementById('condition-confidence').value)
+            };
+            
+            if (conditionData.type === 'text' && !conditionData.content.trim()) {
+                showError('请输入检测内容');
+                return;
+            }
+            
+            if (!editingTask) {
+                console.error('editingTask 为空！');
+                showError('没有正在编辑的任务');
+                return;
+            }
+            
+            if (!editingTask.conditions) {
+                editingTask.conditions = [];
+            }
+            
+            editingTask.conditions.push(conditionData);
+            
+            console.log('条件已添加:', conditionData);
+            console.log('当前 editingTask:', editingTask);
+            updateDebugInfo();
+            showSuccess('条件保存成功');
+        }
+
+        // 初始化
+        updateDebugInfo();
+    </script>
+</body>
+</html>

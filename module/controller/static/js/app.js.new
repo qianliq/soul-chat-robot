@@ -55,7 +55,7 @@ function bindDeviceEvents() {
     }
     
     if (takeScreenshot) {
-        takeScreenshot.addEventListener('click', takeScreenshotHandler);
+        takeScreenshot.addEventListener('click', takeScreenshot);
     }
     
     if (btnBack) {
@@ -192,7 +192,7 @@ function enableDeviceControls(enabled) {
 }
 
 // 获取屏幕截图
-function takeScreenshotHandler() {
+function takeScreenshot() {
     const screenshotImg = document.getElementById('screenshot-img');
     const noScreenshot = document.getElementById('no-screenshot');
     const screenResolution = document.getElementById('screen-resolution');
@@ -632,26 +632,7 @@ function bindModalEvents() {
 
 // 打开任务编辑模态框
 function openTaskModal(task = null) {
-    console.log('打开任务模态框 - task:', task);
-    
-    // 如果是新任务，创建一个临时任务对象
-    if (task) {
-        editingTask = task;
-    } else {
-        editingTask = {
-            id: null,
-            name: '',
-            description: '',
-            task_type: 'simple',
-            loop_count: 1,
-            enabled: true,
-            conditions: [],
-            actions: [],
-            children: []
-        };
-    }
-    
-    console.log('editingTask 设置为:', editingTask);
+    editingTask = task;
     
     // 设置模态框标题
     const title = document.getElementById('task-modal-title');
@@ -701,11 +682,6 @@ function onTaskTypeChange() {
     const loopCountGroup = document.getElementById('loop-count-group');
     const conditionsGroup = document.getElementById('conditions-group');
     const childrenGroup = document.getElementById('children-group');
-    
-    // 同步更新editingTask对象的任务类型
-    if (editingTask) {
-        editingTask.task_type = taskType;
-    }
     
     // 控制字段显示
     loopCountGroup.classList.toggle('d-none', taskType !== 'loop');
@@ -878,9 +854,7 @@ function createActionListItem(action, index) {
         'input': '输入文本',
         'wait': '等待',
         'key': '按键',
-        'swipe': '滑动屏幕',
-        'execute_task': '执行任务',
-        'sleep': '睡眠等待'
+        'swipe': '滑动屏幕'
     };
     
     const typeLabel = typeLabels[action.type] || '未知动作';
@@ -901,12 +875,6 @@ function createActionListItem(action, index) {
             break;
         case 'swipe':
             details = `从 (${action.x1 || 0}, ${action.y1 || 0}) 到 (${action.x2 || 0}, ${action.y2 || 0})`;
-            break;
-        case 'execute_task':
-            details = `任务: ${escapeHtml(action.task_name || action.task_id || '未指定')}`;
-            break;
-        case 'sleep':
-            details = `睡眠时间: ${action.seconds || 1} 秒`;
             break;
     }
     
@@ -1066,8 +1034,6 @@ function onConditionTypeChange() {
 
 // 保存当前条件
 function saveCurrentCondition() {
-    console.log('保存条件 - editingTask:', editingTask);
-    
     const conditionData = {
         type: document.getElementById('condition-type').value,
         content: document.getElementById('condition-content').value,
@@ -1081,7 +1047,6 @@ function saveCurrentCondition() {
     }
     
     if (!editingTask) {
-        console.error('editingTask 为空！');
         showError('没有正在编辑的任务');
         return;
     }
@@ -1137,11 +1102,6 @@ function deleteCondition(index) {
 function openActionModal(actionType, action = null, index = null) {
     editingAction = { action, index, type: actionType };
     
-    // 填充执行任务动作的任务选择框
-    if (actionType === 'execute_task') {
-        populateTaskSelectOptions();
-    }
-    
     // 设置模态框标题
     const title = document.getElementById('action-modal-title');
     const typeLabels = {
@@ -1149,9 +1109,7 @@ function openActionModal(actionType, action = null, index = null) {
         'input': '输入文本',
         'wait': '等待',
         'key': '按键',
-        'swipe': '滑动屏幕',
-        'execute_task': '执行任务',
-        'sleep': '睡眠等待'
+        'swipe': '滑动屏幕'
     };
     
     if (title) {
@@ -1197,13 +1155,6 @@ function openActionModal(actionType, action = null, index = null) {
                 document.getElementById('swipe-x2').value = action.x2 || 0;
                 document.getElementById('swipe-y2').value = action.y2 || 0;
                 document.getElementById('swipe-duration').value = action.duration || 300;
-                break;
-            case 'execute_task':
-                document.getElementById('execute-task-id').value = action.task_id || '';
-                document.getElementById('execute-task-name').value = action.task_name || '';
-                break;
-            case 'sleep':
-                document.getElementById('sleep-seconds').value = action.seconds || 1;
                 break;
         }
     } else {
@@ -1256,17 +1207,6 @@ function saveCurrentAction() {
             actionData.y2 = parseInt(document.getElementById('swipe-y2').value) || 0;
             actionData.duration = parseInt(document.getElementById('swipe-duration').value) || 300;
             break;
-        case 'execute_task':
-            actionData.task_id = document.getElementById('execute-task-id').value || '';
-            actionData.task_name = document.getElementById('execute-task-name').value || '';
-            if (!actionData.task_id.trim()) {
-                showError('请选择要执行的任务');
-                return;
-            }
-            break;
-        case 'sleep':
-            actionData.seconds = parseFloat(document.getElementById('sleep-seconds').value) || 1;
-            break;
     }
     
     if (!editingTask) {
@@ -1316,36 +1256,6 @@ function deleteAction(index) {
         updateActionsList(editingTask.actions);
         showSuccess('动作删除成功');
     }
-}
-
-// 填充任务选择选项
-function populateTaskSelectOptions() {
-    const taskSelect = document.getElementById('execute-task-id');
-    if (!taskSelect) return;
-    
-    // 清空现有选项
-    taskSelect.innerHTML = '<option value="">-- 选择要执行的任务 --</option>';
-    
-    // 添加当前可用的任务（排除正在编辑的任务以避免循环）
-    const availableTasks = currentTasks.filter(task => {
-        return !editingTask || task.id !== editingTask.id;
-    });
-    
-    availableTasks.forEach(task => {
-        const option = document.createElement('option');
-        option.value = task.id;
-        option.textContent = `${task.name} (${getTaskTypeLabel(task.task_type)})`;
-        taskSelect.appendChild(option);
-    });
-    
-    // 监听选择变化，自动填充任务名称
-    taskSelect.addEventListener('change', function() {
-        const selectedTask = availableTasks.find(task => task.id === this.value);
-        const taskNameInput = document.getElementById('execute-task-name');
-        if (taskNameInput && selectedTask) {
-            taskNameInput.value = selectedTask.name;
-        }
-    });
 }
 
 // ===============================

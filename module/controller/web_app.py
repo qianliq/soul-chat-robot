@@ -355,13 +355,18 @@ class WebApp:
                     })
                 
                 # 开始执行任务
-                execution_id = self.task_manager.run_task(task_id)
+                success = self.task_manager.execute_task(task_id)
                 
-                return jsonify({
-                    'status': 'success',
-                    'message': f'开始执行任务: {task.name}',
-                    'execution_id': execution_id
-                })
+                if success:
+                    return jsonify({
+                        'status': 'success',
+                        'message': f'任务执行成功: {task.name}'
+                    })
+                else:
+                    return jsonify({
+                        'status': 'error',
+                        'message': f'任务执行失败: {task.name}'
+                    })
             except Exception as e:
                 logger.error(f"执行任务失败: {str(e)}", exc_info=True)
                 return jsonify({

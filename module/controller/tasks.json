@@ -1,0 +1,38 @@
+[
+  {
+    "id": "8a28ed81-c1ca-4ce4-8504-01e5f46df02c",
+    "name": "1",
+    "description": "1",
+    "conditions": [
+      {
+        "id": "86ac6b11-0a4f-425b-9c1b-7e8ca52f48d2",
+        "type": "text",
+        "content": "互联网",
+        "analyzer": "ocr",
+        "confidence": 0.7,
+        "template_name": "",
+        "template_region": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "template_image": null
+      }
+    ],
+    "actions": [
+      {
+        "id": "131fb58c-ed2a-45f1-9e7c-40f8a8cace0b",
+        "type": "key",
+        "name": "按键",
+        "description": "",
+        "key_code": 3,
+        "key_name": "Home键"
+      }
+    ],
+    "children": [],
+    "task_type": "conditional",
+    "loop_count": 1,
+    "enabled": true
+  }
+]

@@ -1,0 +1,16 @@
+flask>=2.0.0
+opencv-python>=4.5.0
+pillow>=8.0.0
+requests>=2.25.0
+pathlib
+dataclasses
+uuid
+logging
+typing
+json
+time
+base64
+datetime
+subprocess
+tempfile
+argparse

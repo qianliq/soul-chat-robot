@@ -28,12 +28,13 @@ class ADBController:
         self.device_id = None
         self.screen_size = None
     
-    def run_adb_command(self, command: List[str], shell: bool = False) -> Tuple[bool, str]:
+    def run_adb_command(self, command: List[str], shell: bool = False, binary_output: bool = False) -> Tuple[bool, Union[str, bytes]]:
         """
         执行ADB命令
         
         :param command: ADB命令列表
         :param shell: 是否使用shell=True
+        :param binary_output: 是否期望二进制输出
         :return: (成功标志, 输出结果)
         """
         try:
@@ -54,21 +55,24 @@ class ADBController:
                     shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE,
-                    text=True
+                    text=not binary_output
                 )
             else:
                 result = subprocess.run(
                     full_command, 
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE,
-                    text=True
+                    text=not binary_output
                 )
             
             # 检查命令是否成功
             if result.returncode == 0:
                 return True, result.stdout
             else:
-                return False, f"错误: {result.stderr}"
+                error_msg = result.stderr
+                if binary_output and isinstance(error_msg, bytes):
+                    error_msg = error_msg.decode('utf-8', errors='ignore')
+                return False, f"错误: {error_msg}"
                 
         except Exception as e:
             return False, f"执行ADB命令时出错: {str(e)}"
@@ -173,41 +177,61 @@ class ADBController:
             print("未连接设备")
             return None
         
-        # 创建临时文件
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as temp_file:
-            temp_path = temp_file.name
-        
         try:
-            # 在设备上截图
-            success1, output1 = self.run_adb_command(["shell", "screencap", "-p", "/sdcard/screenshot.png"])
-            if not success1:
-                print(f"截图失败: {output1}")
+            # 方法1: 直接通过 exec-out 获取截图数据（推荐）
+            success, output = self.run_adb_command(["exec-out", "screencap", "-p"], binary_output=True)
+            if success and output and len(output) > 1000:  # 确保有足够的数据
+                return output
+            
+            print("方法1失败，尝试方法2...")
+            
+            # 方法2: 使用临时文件方式（备用方案）
+            device_path = "/data/local/tmp/screenshot.png"
+            
+            # 创建本地临时文件
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as temp_file:
+                temp_path = temp_file.name
+            
+            try:
+                # 在设备上截图到临时目录（避免权限问题）
+                success1, output1 = self.run_adb_command(["shell", "screencap", "-p", device_path])
+                if not success1:
+                    print(f"截图失败: {output1}")
+                    # 尝试使用 /sdcard 路径
+                    device_path = "/sdcard/screenshot.png"
+                    success1, output1 = self.run_adb_command(["shell", "screencap", "-p", device_path])
+                    if not success1:
+                        print(f"截图仍然失败: {output1}")
+                        os.unlink(temp_path)
+                        return None
+                
+                # 将截图从设备拉到电脑
+                success2, output2 = self.run_adb_command(["pull", device_path, temp_path])
+                if not success2:
+                    print(f"拉取截图失败: {output2}")
+                    os.unlink(temp_path)
+                    return None
+                
+                # 删除设备上的临时文件
+                self.run_adb_command(["shell", "rm", device_path])
+                
+                # 读取截图数据
+                with open(temp_path, 'rb') as f:
+                    screenshot_data = f.read()
+                
+                # 删除本地临时文件
                 os.unlink(temp_path)
+                
+                return screenshot_data
+                
+            except Exception as e:
+                print(f"方法2截图过程中出错: {str(e)}")
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
                 return None
-            
-            # 将截图从设备拉到电脑
-            success2, output2 = self.run_adb_command(["pull", "/sdcard/screenshot.png", temp_path])
-            if not success2:
-                print(f"拉取截图失败: {output2}")
-                os.unlink(temp_path)
-                return None
-            
-            # 删除设备上的临时文件
-            self.run_adb_command(["shell", "rm", "/sdcard/screenshot.png"])
-            
-            # 读取截图数据
-            with open(temp_path, 'rb') as f:
-                screenshot_data = f.read()
-            
-            # 删除本地临时文件
-            os.unlink(temp_path)
-            
-            return screenshot_data
-            
+                
         except Exception as e:
             print(f"截图过程中出错: {str(e)}")
-            if os.path.exists(temp_path):
-                os.unlink(temp_path)
             return None
     
     def tap(self, x: int, y: int) -> bool:

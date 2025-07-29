@@ -174,3 +174,238 @@ body {
         padding: 0.25rem 0.5rem;
     }
 }
+
+/* 任务执行状态指示器 */
+.task-status {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.task-status.idle {
+    background-color: #6c757d;
+}
+
+.task-status.running {
+    background-color: #ffc107;
+    animation: pulse 1.5s infinite;
+}
+
+.task-status.success {
+    background-color: #198754;
+}
+
+.task-status.error {
+    background-color: #dc3545;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+/* 模态框增强样式 */
+.modal-dialog-scrollable .modal-content {
+    max-height: 90vh;
+}
+
+.modal-body {
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+/* 条件和动作列表项增强样式 */
+.list-group-item .btn-group {
+    min-width: 80px;
+}
+
+.list-group-item:hover .btn-group {
+    opacity: 1;
+}
+
+.list-group-item .btn-group {
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+/* 坐标输入组样式 */
+.coordinate-input-group .input-group-text {
+    min-width: 35px;
+    justify-content: center;
+}
+
+/* 成功和错误消息样式 */
+.message-toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1055;
+    min-width: 250px;
+}
+
+.message-toast.success {
+    background-color: #d1edff;
+    border-color: #0d6efd;
+    color: #0d6efd;
+}
+
+.message-toast.error {
+    background-color: #f8d7da;
+    border-color: #dc3545;
+    color: #dc3545;
+}
+
+/* 任务类型标签样式 */
+.task-type-badge.simple {
+    background-color: #e7f1ff !important;
+    color: #0d6efd !important;
+}
+
+.task-type-badge.conditional {
+    background-color: #d1e7dd !important;
+    color: #198754 !important;
+}
+
+.task-type-badge.loop {
+    background-color: #e2e3f1 !important;
+    color: #6f42c1 !important;
+}
+
+/* 动作类型图标样式 */
+.action-type-icon {
+    width: 20px;
+    text-align: center;
+    margin-right: 8px;
+}
+
+/* 拖拽排序增强 */
+.sortable-item {
+    cursor: move;
+    transition: all 0.2s;
+}
+
+.sortable-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.sortable-placeholder {
+    background-color: #f8f9fa;
+    border: 2px dashed #dee2e6;
+    margin: 5px 0;
+    height: 60px;
+    border-radius: 4px;
+}
+
+/* 空状态样式增强 */
+.empty-state {
+    padding: 3rem 1rem;
+    text-align: center;
+    color: #6c757d;
+}
+
+.empty-state .empty-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+.empty-state .empty-title {
+    font-size: 1.25rem;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}
+
+.empty-state .empty-description {
+    margin-bottom: 1.5rem;
+}
+
+/* 加载状态增强 */
+.loading-spinner {
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.75s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* 模板图片预览样式 */
+.template-preview {
+    max-width: 100px;
+    max-height: 100px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+}
+
+.template-preview-container {
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    padding: 1rem;
+}
+
+/* 条件置信度滑块样式 */
+.form-range::-webkit-slider-track {
+    background-color: #e9ecef;
+}
+
+.form-range::-webkit-slider-thumb {
+    background-color: #0d6efd;
+}
+
+.confidence-label {
+    font-weight: 500;
+    color: #495057;
+}
+
+/* 子任务选择样式 */
+.child-task-selector .list-group-item {
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.child-task-selector .list-group-item:hover {
+    background-color: #f8f9fa;
+    transform: translateX(5px);
+}
+
+/* 坐标选择器样式增强 */
+#coordinate-picker-modal .modal-body {
+    padding: 0;
+}
+
+#picker-overlay {
+    cursor: crosshair;
+}
+
+#picker-indicator {
+    pointer-events: none;
+    z-index: 10;
+}
+
+.picker-circle {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid #dc3545;
+    background-color: rgba(220, 53, 69, 0.3);
+    position: absolute;
+    transform: translate(-50%, -50%);
+    animation: picker-pulse 1s infinite;
+}
+
+@keyframes picker-pulse {
+    0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    50% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.7; }
+    100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
